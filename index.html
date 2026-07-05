@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hsin Ya Lin (Joshua) — Electrical Engineering</title>
+<meta name="description" content="Hsin Ya Lin (Joshua), Purdue Electrical Engineering student focused on IC and digital design.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="header-inner">
+    <img class="photo" src="profile.jpg" alt="Photo of Hsin Ya Lin">
+    <div class="header-text">
+      <h1>Hsin Ya Lin <span class="alias">(Joshua)</span></h1>
+      <p class="tagline">Electrical Engineering, Purdue University &middot; B.S. expected May 2028</p>
+      <p class="focus">IC and digital design, communication ICs, and semiconductor systems</p>
+      <nav class="contact">
+        <a href="mailto:lin2082@purdue.edu">lin2082@purdue.edu</a>
+        <a href="https://www.linkedin.com/in/hsin-ya-lin-70349826a" target="_blank" rel="noopener">LinkedIn</a>
+        <a href="https://github.com/Joshua-HsinYa-Lin" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </div>
+</header>
+
+<main>
+<section id="about">
+  <h2>About</h2>
+  <p>I am an Electrical Engineering student at Purdue University (GPA 3.98/4.0), working primarily in IC and digital design. My current work spans a SystemVerilog matrix-calculator SoC taken through an RTL-to-GDS flow, transformer-based error-correction decoders at NYCU, satellite electronics work at the Taiwan Space Agency, and inverse-dynamics analysis of humanoid walking in the Purdue TRACE lab.</p>
+  <p>I work across the stack that a hardware problem actually touches: RTL and verification, physical design, embedded C on microcontrollers, and the MATLAB and Python modeling that sits behind the control and signal-processing side. Outside coursework I spend time on competitive robotics electronics, low-level systems programming, and reading on communications and coding theory. I am looking for internship and research roles in digital design, communication ICs, and semiconductors.</p>
+</section>
+
+<section id="projects">
+  <h2>Project Highlights</h2>
+
+  <article class="project">
+    <div class="project-head">
+      <h3>Matrix-Calculator SoC</h3>
+      <a class="repo" href="https://github.com/Joshua-HsinYa-Lin/socet-matrix-calculator" target="_blank" rel="noopener">Repo</a>
+    </div>
+    <p class="meta">Purdue System on Chips Team &middot; SystemVerilog, Yosys, Virtuoso, SimVision</p>
+    <p>A 33-state FSM in SystemVerilog driving a hardware calculator for 9&times;9 matrix operations, verified with 7 module-level testbenches and run on an FPGA simulator. The design uses 3&times;128-entry memory and a 2-signal handshake bus connecting the controller to 4 arithmetic modules, with Yosys synthesis constraints resolved through shift-based address offsets. Carried through a full RTL-to-GDS flow: logic synthesis, place and route, and physical timing closure, with standard-cell layouts in Virtuoso verified in SimVision.</p>
+  </article>
+
+  <article class="project">
+    <div class="project-head">
+      <h3>Error-Correction Coding with Transformers</h3>
+      <a class="repo" href="https://github.com/Joshua-HsinYa-Lin/error-correction-coding-with-transformer" target="_blank" rel="noopener">Repo</a>
+    </div>
+    <p class="meta">NYCU Institute of Communications &middot; PyTorch, CUDA, Linux</p>
+    <p>Transformer encoder-decoder architectures for error-correction coding, trained on a 4.6 GB HDF5 edit-distance dataset with CUDA GPU acceleration. I characterized synchronization-error channels across 1M binary codewords and built Levenshtein alignment metrics to compare autoregressive, embedding, and CTC decoder architectures, benchmarked against BCJR and CNN-ED baselines on BER, BLER, and Hamming loss.</p>
+  </article>
+
+  <article class="project">
+    <div class="project-head">
+      <h3>Humanoid Walking Analysis</h3>
+      <a class="repo" href="https://github.com/Joshua-HsinYa-Lin/trace-lab-humanoid-walking-analysis" target="_blank" rel="noopener">Repo</a>
+    </div>
+    <p class="meta">Purdue TRACE Humanoid Robotics Lab &middot; MATLAB, AnyBody, Pinocchio</p>
+    <p>Spatial kinematics and inverse dynamics simulated in AnyBody from 3D ViCon motion-capture data, processed in MATLAB. I consolidated a 16-module extraction, plotting, and reporting workflow into a single pipeline handling inverse-dynamics and marker-tracking HDF5 trees exceeding 30,000 nodes, validated AnyBody-predicted ground reaction force against measured data across 10+ joint force and moment channels, and cross-checked joint torque and force in Pinocchio.</p>
+  </article>
+</section>
+
+<section id="experience">
+  <h2>Experience</h2>
+
+  <div class="entry">
+    <div class="entry-head">
+      <span class="role">Satellite Electronics Intern, Taiwan Space Agency</span>
+      <span class="date">Jul 2026 &ndash; Aug 2026</span>
+    </div>
+    <ul>
+      <li>Embedded control and simulation work on a satellite subsystem, in MATLAB and C. Project details covered by confidentiality.</li>
+    </ul>
+  </div>
+
+  <div class="entry">
+    <div class="entry-head">
+      <span class="role">Research Intern, NYCU Institute of Communications</span>
+      <span class="date">May 2026 &ndash; Jul 2026</span>
+    </div>
+    <ul>
+      <li>Benchmarked machine-learning error-correction decoders against BCJR and CNN-ED baselines on BER, BLER, and Hamming loss.</li>
+      <li>Characterized synchronization-error channels across 1M binary codewords; built Levenshtein alignment metrics to evaluate autoregressive, embedding, and CTC decoder architectures.</li>
+      <li>Designed transformer encoder-decoder architectures for error-correction coding, trained on a 4.6 GB HDF5 edit-distance dataset with CUDA GPU acceleration on Linux.</li>
+    </ul>
+  </div>
+
+  <div class="entry">
+    <div class="entry-head">
+      <span class="role">Teaching Assistant, Purdue Computer Science</span>
+      <span class="date">Jan 2026 &ndash; Present</span>
+    </div>
+    <ul>
+      <li>Ran weekly C programming labs for 54 students.</li>
+      <li>Resolved UNIX system and C language errors in office hours.</li>
+      <li>Reviewed student code for structured-programming practice.</li>
+    </ul>
+  </div>
+
+  <div class="entry">
+    <div class="entry-head">
+      <span class="role">Digital Design Member, Purdue System on Chips Team</span>
+      <span class="date">Jan 2026 &ndash; Present</span>
+    </div>
+    <ul>
+      <li>Designed a 33-state FSM in SystemVerilog for a 9&times;9 matrix-operation calculator; verified with 7 module-level testbenches and implemented on an FPGA simulator.</li>
+      <li>Architected 3&times;128-entry memory and a 2-signal handshake bus for the controller and 4 arithmetic modules; resolved Yosys synthesis constraints using shift-based address offsets.</li>
+      <li>Executed an RTL-to-GDS flow including logic synthesis, place and route, and physical timing closure; designed standard-cell layouts in Virtuoso and verified in SimVision.</li>
+    </ul>
+  </div>
+
+  <div class="entry">
+    <div class="entry-head">
+      <span class="role">Research Assistant, Purdue TRACE Humanoid Robotics Lab</span>
+      <span class="date">Jan 2026 &ndash; Present</span>
+    </div>
+    <ul>
+      <li>Simulated spatial kinematics and inverse dynamics in AnyBody from 3D ViCon motion-capture data, processed in MATLAB.</li>
+      <li>Consolidated a 16-module extraction, plotting, and reporting workflow into a single MATLAB pipeline handling inverse-dynamics and marker-tracking HDF5 trees exceeding 30,000 nodes.</li>
+      <li>Validated AnyBody-predicted ground reaction force against measured data across 10+ joint force and moment channels; cross-checked joint torque and force in Pinocchio.</li>
+    </ul>
+  </div>
+
+  <div class="entry">
+    <div class="entry-head">
+      <span class="role">Power and Hardware Engineer, Purdue Lunabotics</span>
+      <span class="date">Aug 2025 &ndash; Present</span>
+    </div>
+    <ul>
+      <li>Built a 24V, 20A battery sensing and protection board using the TI BQ77915.</li>
+      <li>Fabricated, soldered, and assembled 50+ components onto the PCB.</li>
+      <li>Designed and verified the circuits in KiCad and LTspice, then integrated the board into the rover power-distribution system.</li>
+    </ul>
+  </div>
+
+  <div class="entry">
+    <div class="entry-head">
+      <span class="role">Electrical Team Lead, FIRST Robotics Team 8020</span>
+      <span class="date">Aug 2023 &ndash; Jun 2024</span>
+    </div>
+    <ul>
+      <li>Designed a modular electrical architecture, reducing debugging time by 50%.</li>
+      <li>Reached 0% non-wetting solder defects by training a 10-member team.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="education">
+  <h2>Education</h2>
+  <div class="entry">
+    <div class="entry-head">
+      <span class="role">Purdue University, West Lafayette, Indiana</span>
+      <span class="date">Aug 2025 &ndash; Present</span>
+    </div>
+    <p>Bachelor of Science in Electrical Engineering (expected May 2028). GPA 3.98/4.0. Dean's List (2 semesters) and Semester Honors (2 semesters).</p>
+  </div>
+</section>
+
+<section id="skills">
+  <h2>Skills</h2>
+  <p class="skill-line"><span class="skill-label">Languages:</span> C, C++, MATLAB, SystemVerilog, Assembly, Python, JavaScript, Linux/Unix, git</p>
+  <p class="skill-line"><span class="skill-label">Engineering tools:</span> KiCad (circuit design), LTspice (circuit analysis), Yosys / SimVision / GTKWave (digital design), Simulink (controls), Virtuoso (physical design), SolidWorks (3D CAD)</p>
+  <p class="skill-line"><span class="skill-label">Technical:</span> system design and verification, PCB design and manufacturing, FPGA prototyping</p>
+</section>
+
+<section id="contact">
+  <h2>Contact</h2>
+  <p>Email: <a href="mailto:lin2082@purdue.edu">lin2082@purdue.edu</a></p>
+  <p>LinkedIn: <a href="https://www.linkedin.com/in/hsin-ya-lin-70349826a" target="_blank" rel="noopener">hsin-ya-lin</a></p>
+  <p>GitHub: <a href="https://github.com/Joshua-HsinYa-Lin" target="_blank" rel="noopener">Joshua-HsinYa-Lin</a></p>
+</section>
+</main>
+
+<footer>
+  <p>Hsin Ya Lin &middot; Electrical Engineering, Purdue University</p>
+</footer>
+</body>
+</html>
