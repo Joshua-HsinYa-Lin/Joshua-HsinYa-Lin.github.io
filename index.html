@@ -49,7 +49,7 @@
       <a class="repo" href="https://github.com/Joshua-HsinYa-Lin/error-correction-coding-with-transformer" target="_blank" rel="noopener">Repo</a>
     </div>
     <p class="meta">NYCU Institute of Communications &middot; PyTorch, CUDA, Linux</p>
-    <p>Transformer encoder-decoder architectures for error-correction coding, trained on an HDF5 edit-distance dataset with CUDA GPU acceleration. I characterized synchronization-error channels across 1M binary codewords and built Levenshtein alignment metrics to compare autoregressive, embedding, and CTC decoder architectures, benchmarked against BCJR and CNN-ED baselines on BER, BLER, and Hamming loss.</p>
+    <p>Transformer encoder-decoder architectures for error-correction coding, trained on a 4.6 GB HDF5 edit-distance dataset with CUDA GPU acceleration. I characterized synchronization-error channels across 1M binary codewords and built Levenshtein alignment metrics to compare autoregressive, embedding, and CTC decoder architectures, benchmarked against BCJR and CNN-ED baselines on BER, BLER, and Hamming loss.</p>
   </article>
 
   <article class="project">
@@ -57,8 +57,8 @@
       <h3>Humanoid Walking Analysis</h3>
       <a class="repo" href="https://github.com/Joshua-HsinYa-Lin/trace-lab-humanoid-walking-analysis" target="_blank" rel="noopener">Repo</a>
     </div>
-    <p class="meta">Purdue TRACE Humanoid Robotics Lab &middot; MATLAB, AnyBody</p>
-    <p>Spatial kinematics and inverse dynamics simulated in AnyBody from 3D ViCon motion-capture data, processed in MATLAB. I consolidated a 16-module extraction, plotting, and reporting workflow into a single pipeline handling inverse-dynamics and marker-tracking HDF5 outputs, validated AnyBody-predicted ground reaction force against measured data across 10+ joint force and moment channels.</p>
+    <p class="meta">Purdue TRACE Humanoid Robotics Lab &middot; MATLAB, AnyBody, Pinocchio</p>
+    <p>Spatial kinematics and inverse dynamics simulated in AnyBody from 3D ViCon motion-capture data, processed in MATLAB. I consolidated a 16-module extraction, plotting, and reporting workflow into a single pipeline handling inverse-dynamics and marker-tracking HDF5 trees exceeding 30,000 nodes, validated AnyBody-predicted ground reaction force against measured data across 10+ joint force and moment channels; cross-checked joint torque and force in Pinocchio.</p>
   </article>
   <article class="project">
     <div class="project-head">
@@ -66,6 +66,7 @@
     </div>
     <p class="meta">Purdue ECE 20007 &middot; LTspice, oscilloscope, discrete power stage</p>
     <p>An adjustable boost converter stepping a 5V input up to a 5V&ndash;30V output range, with the switching duty cycle sized from the boost transfer function rather than tuned empirically. A 555 timer generates the PWM driving an NMOS switch into an inductor. A PMOS output ceiling limiter holds the rail below its maximum under no load or a shorted load, a failure mode that otherwise destroys the output capacitors. Measured output reconciled against LTspice by accounting for wire and breadboard resistance, component tolerance, and device on-resistance.</p>
+      <img class="shot" src="docs/Boost Converter Schematic.png" alt="Boost converter schematic" loading="lazy">
   </article>
 
   <article class="project">
@@ -74,6 +75,7 @@
     </div>
     <p class="meta">Purdue ECE 20007 &middot; Analog design, op-amps, LTspice</p>
     <p>A three-band analog equalizer splitting an input signal into low, mid, and high bands with active RC filters, each band independently adjustable. LM324 op-amps act as unity-gain buffers between the passive filters and the volume stages to remove loading effects, with per-band inverting amplifiers setting gain. The bands recombine without cross-loading and drive a speaker through a power amplifier stage delivering over 400&nbsp;mW into 8&nbsp;&ohm;. Simulated with an AC sweep in LTspice before building.</p>
+      <img class="shot" src="docs/Audio Schematic.png" alt="Three band audio equalizer schematic" loading="lazy">
   </article>
 
 </section>
@@ -93,6 +95,9 @@
       <li>Ran a six-stage gated bring-up and flew auto-generated control code on target through a real IMU and four reaction wheels across 65 runs on an air-bearing stage.</li>
       <li>Specific project details are covered by confidentiality.</li>
     </ul>
+    <img class="shot" src="docs/TASA_Office.jpg" alt="Bench setup at the Taiwan Space Agency" loading="lazy">
+    <img class="shot" src="docs/TASA_Conference_Poster_Blurred.jpg" alt="Conference poster, technical detail blurred for confidentiality" loading="lazy">
+
   </div>
 
   <div class="entry">
@@ -103,7 +108,7 @@
     <ul>
       <li>Benchmarked machine-learning error-correction decoders against BCJR and CNN-ED baselines on BER, BLER, and Hamming loss.</li>
       <li>Characterized synchronization-error channels across 1M binary codewords; built Levenshtein alignment metrics to evaluate autoregressive, embedding, and CTC decoder architectures.</li>
-      <li>Designed transformer encoder-decoder architectures for error-correction coding, trained on an HDF5 edit-distance dataset with CUDA GPU acceleration on Linux.</li>
+      <li>Designed transformer encoder-decoder architectures for error-correction coding, trained on a 4.6 GB HDF5 edit-distance dataset with CUDA GPU acceleration on Linux.</li>
     </ul>
   </div>
 
@@ -140,17 +145,23 @@
       <li>Designed a 24V, 20A battery sensing and protection board around the TI BQ77915, capturing the schematic in KiCad, verifying the analog circuits in LTspice, and laying the board out for fabrication.</li>
       <li>Assembled and hand-soldered 50+ components onto the fabricated board, bench tested it, and integrated it into the rover power distribution system.</li>
     </ul>
+    <img class="shot" src="docs/BQ77915 BPC design.jpg" alt="BQ77915 battery protection board" loading="lazy">
+
+    <img class="shot" src="docs/Lunabotics_Schematic.png" alt="Lunabotics battery protection schematic" loading="lazy">
+
   </div>
 
   <div class="entry">
     <div class="entry-head">
-      <span class="role">Electrical Team Lead, FIRST Robotics Team 8020</span>
+      <span class="role">Electrical Team Lead, <a href="https://www.ckrobotics.org/The-team/leaders-mentors/leaders" target="_blank" rel="noopener">FIRST Robotics Team 8020</a></span>
       <span class="date">Aug 2023 &ndash; Jun 2024</span>
     </div>
     <ul>
       <li>Drew the electrical schematic for each season's competition robot in KiCad and designed a modular power distribution scheme in which every subsystem meets the robot at a labeled connector, so a fault isolates by disconnecting one function.</li>
       <li>Calibrated and programmed CAN bus motor controllers driving brushless actuators and encoders, with robot code written in LabVIEW.</li>
     </ul>
+    <img class="shot" src="docs/2023 Robot.png" alt="Team 8020 competition robot, 2023 season" loading="lazy">
+
   </div>
 
   <div class="entry">
@@ -160,8 +171,8 @@
     </div>
     <ul>
       <li>Simulated spatial kinematics and inverse dynamics in AnyBody from 3D ViCon motion-capture data, processed in MATLAB.</li>
-      <li>Consolidated a 16-module extraction, plotting, and reporting workflow into a single MATLAB pipeline handling inverse-dynamics and marker-tracking HDF5 outputs.</li>
-      <li>Validated AnyBody-predicted ground reaction force against measured data across 10+ joint force and moment channels.</li>
+      <li>Consolidated a 16-module extraction, plotting, and reporting workflow into a single MATLAB pipeline handling inverse-dynamics and marker-tracking HDF5 trees exceeding 30,000 nodes.</li>
+      <li>Validated AnyBody-predicted ground reaction force against measured data across 10+ joint force and moment channels; cross-checked joint torque and force in Pinocchio.</li>
     </ul>
   </div>
 
@@ -179,7 +190,7 @@
 
   <div class="entry">
     <div class="entry-head">
-      <span class="role">Electrical Team Lead, FIRST Robotics Team 8020</span>
+      <span class="role">Electrical Team Lead, <a href="https://www.ckrobotics.org/The-team/leaders-mentors/leaders" target="_blank" rel="noopener">FIRST Robotics Team 8020</a></span>
       <span class="date">Aug 2023 &ndash; Jun 2024</span>
     </div>
     <ul>

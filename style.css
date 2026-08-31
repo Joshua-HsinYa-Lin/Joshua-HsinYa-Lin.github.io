@@ -182,3 +182,15 @@ footer {
   .contact a { display: inline-block; margin: 0 0.5rem 0.3rem; }
   .project-head { flex-direction: column; gap: 0.3rem; }
 }
+
+/* Project and experience photographs. Constrained so a tall schematic cannot
+   push the rest of the page down, and full width on a phone. */
+.shot {
+  display: block;
+  max-width: 100%;
+  width: min(560px, 100%);
+  margin: 0.9rem 0 0.2rem;
+  border: 1px solid #d8d8d8;
+  border-radius: 4px;
+  background: #fff;
+}
