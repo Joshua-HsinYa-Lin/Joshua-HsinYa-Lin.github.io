@@ -27,57 +27,8 @@
 <main>
 <section id="about">
   <h2>About</h2>
-  <p>I am an Electrical Engineering student at Purdue University (GPA 3.98/4.0), working across embedded systems, board-level hardware, and digital design. My current work spans satellite electronics at the Taiwan Space Agency, where I designed and brought up a bench test board and wrote the firmware that runs on it, a SystemVerilog matrix-calculator SoC taken through an RTL-to-GDS flow, battery protection hardware for a competition rover, and transformer-based error-correction decoders at NYCU.</p>
-  <p>I work across the stack a hardware problem actually touches: schematic capture and PCB layout in KiCad, board assembly and bring-up, embedded C on microcontrollers, RTL and verification through physical design, and the MATLAB and Python modeling behind the control and signal-processing side. Outside coursework I spend time on competitive robotics electronics, low-level systems programming, and reading on communications and coding theory. I am looking for Summer 2027 internships in hardware, embedded, and digital design.</p>
-</section>
-
-<section id="projects">
-  <h2>Project Highlights</h2>
-
-  <article class="project">
-    <div class="project-head">
-      <h3>Matrix-Calculator SoC</h3>
-      <a class="repo" href="https://github.com/Joshua-HsinYa-Lin/socet-matrix-calculator" target="_blank" rel="noopener">Repo</a>
-    </div>
-    <p class="meta">Purdue System on Chips Team &middot; SystemVerilog, Yosys, Virtuoso, SimVision</p>
-    <p>A 33-state FSM in SystemVerilog driving a hardware calculator for 9&times;9 matrix operations, verified with 7 module-level testbenches in ModelSim. The design uses 3&times;128-entry memory and a 2-signal handshake bus connecting the controller to 4 arithmetic modules, with Yosys synthesis constraints resolved through shift-based address offsets. Carried through a full RTL-to-GDS flow: logic synthesis, place and route, and physical timing closure, with standard-cell layouts in Virtuoso verified in SimVision.</p>
-  </article>
-
-  <article class="project">
-    <div class="project-head">
-      <h3>Error-Correction Coding with Transformers</h3>
-      <a class="repo" href="https://github.com/Joshua-HsinYa-Lin/error-correction-coding-with-transformer" target="_blank" rel="noopener">Repo</a>
-    </div>
-    <p class="meta">NYCU Institute of Communications &middot; PyTorch, CUDA, Linux</p>
-    <p>Transformer encoder-decoder architectures for error-correction coding, trained on a 4.6 GB HDF5 edit-distance dataset with CUDA GPU acceleration. I characterized synchronization-error channels across 1M binary codewords and built Levenshtein alignment metrics to compare autoregressive, embedding, and CTC decoder architectures, benchmarked against BCJR and CNN-ED baselines on BER, BLER, and Hamming loss.</p>
-  </article>
-
-  <article class="project">
-    <div class="project-head">
-      <h3>Humanoid Walking Analysis</h3>
-      <a class="repo" href="https://github.com/Joshua-HsinYa-Lin/trace-lab-humanoid-walking-analysis" target="_blank" rel="noopener">Repo</a>
-    </div>
-    <p class="meta">Purdue TRACE Humanoid Robotics Lab &middot; MATLAB, AnyBody, Pinocchio</p>
-    <p>Spatial kinematics and inverse dynamics simulated in AnyBody from 3D ViCon motion-capture data, processed in MATLAB. I consolidated a 16-module extraction, plotting, and reporting workflow into a single pipeline handling inverse-dynamics and marker-tracking HDF5 trees exceeding 30,000 nodes, validated AnyBody-predicted ground reaction force against measured data across 10+ joint force and moment channels; cross-checked joint torque and force in Pinocchio.</p>
-  </article>
-  <article class="project">
-    <div class="project-head">
-      <h3>Adjustable DC-DC Boost Converter</h3>
-    </div>
-    <p class="meta">Purdue ECE 20007 &middot; LTspice, oscilloscope, discrete power stage</p>
-    <p>An adjustable boost converter stepping a 5V input up to a 5V&ndash;30V output range, with the switching duty cycle sized from the boost transfer function rather than tuned empirically. A 555 timer generates the PWM driving an NMOS switch into an inductor. A PMOS output ceiling limiter holds the rail below its maximum under no load or a shorted load, a failure mode that otherwise destroys the output capacitors. Measured output reconciled against LTspice by accounting for wire and breadboard resistance, component tolerance, and device on-resistance.</p>
-      <img class="shot" src="docs/Boost%20Converter%20Schematic.png" alt="Boost converter schematic" loading="lazy">
-  </article>
-
-  <article class="project">
-    <div class="project-head">
-      <h3>Three-Band Analog Audio Equalizer</h3>
-    </div>
-    <p class="meta">Purdue ECE 20007 &middot; Analog design, op-amps, LTspice</p>
-    <p>A three-band analog equalizer splitting an input signal into low, mid, and high bands with active RC filters, each band independently adjustable. LM324 op-amps act as unity-gain buffers between the passive filters and the volume stages to remove loading effects, with per-band inverting amplifiers setting gain. The bands recombine without cross-loading and drive a speaker through a power amplifier stage delivering over 400&nbsp;mW into 8&nbsp;&ohm;. Simulated with an AC sweep in LTspice before building.</p>
-      <img class="shot" src="docs/Audio%20Schematic.png" alt="Three band audio equalizer schematic" loading="lazy">
-  </article>
-
+  <p>Electrical Engineering at Purdue, GPA 3.98/4.0, graduating December 2028. I build boards and write the firmware that runs on them, then bring them up on the bench. Most recently that meant designing the test hardware for a satellite reaction wheel at the Taiwan Space Agency and flying my own control code on it.</p>
+  <p>Schematic capture and PCB layout in KiCad and Altium, board assembly and bring-up, embedded C and C++ on microcontrollers, SystemVerilog from RTL through to layout, and the MATLAB and Python modeling behind the control and signal-processing work. Looking for Summer 2027 internships in hardware, embedded, and digital design.</p>
 </section>
 
 <section id="experience">
@@ -97,7 +48,6 @@
     </ul>
     <img class="shot" src="docs/TASA_Office.jpg" alt="Bench setup at the Taiwan Space Agency" loading="lazy">
     <img class="shot" src="docs/TASA_Conference_Poster_Blurred.jpg" alt="Conference poster, technical detail blurred for confidentiality" loading="lazy">
-
   </div>
 
   <div class="entry">
@@ -106,9 +56,9 @@
       <span class="date">May 2026 &ndash; Jul 2026</span>
     </div>
     <ul>
-      <li>Benchmarked machine-learning error-correction decoders against BCJR and CNN-ED baselines on BER, BLER, and Hamming loss.</li>
-      <li>Characterized synchronization-error channels across 1M binary codewords; built Levenshtein alignment metrics to evaluate autoregressive, embedding, and CTC decoder architectures.</li>
-      <li>Designed transformer encoder-decoder architectures for error-correction coding, trained on a 4.6 GB HDF5 edit-distance dataset with CUDA GPU acceleration on Linux.</li>
+      <li>Applied Transformer architectures to error-correction coding over synchronization-error channels, where an insertion or deletion shifts every following bit and classical decoders lose the position assumption they rest on.</li>
+      <li>Built three designs in PyTorch on CUDA: an autoregressive encoder-decoder, a Siamese encoder learning a 256-dimensional space where Euclidean distance tracks edit distance, and a CTC head decoding bits directly.</li>
+      <li>Cut edit-distance estimation error to 2.09 RMSE against 2.62 and 2.91 for the CGK and CNN-ED baselines, with BCJR as the classical reference, across 1M binary codewords on a 4.6&nbsp;GB HDF5 dataset.</li>
     </ul>
   </div>
 
@@ -118,50 +68,26 @@
       <span class="date">Jan 2026 &ndash; Present</span>
     </div>
     <ul>
-      <li>Ran weekly C programming labs for 54 students.</li>
-      <li>Resolved UNIX system and C language errors in office hours.</li>
-      <li>Reviewed student code for structured-programming practice.</li>
+      <li>Ran weekly C programming labs for 54 students, covering pointers, memory management, and the UNIX toolchain.</li>
+      <li>Diagnosed segmentation faults and memory errors with gdb in office hours, and reviewed student code against structured-programming standards.</li>
     </ul>
   </div>
+</section>
+
+<section id="research">
+  <h2>Research</h2>
 
   <div class="entry">
     <div class="entry-head">
-      <span class="role">Digital Design Member, Purdue System on Chips Team</span>
+      <span class="role">Digital Design, Purdue System on Chip Extension Technologies (SoCET)</span>
       <span class="date">Jan 2026 &ndash; Present</span>
     </div>
     <ul>
-      <li>Designed a 33-state FSM in SystemVerilog for a 9&times;9 matrix-operation calculator; verified with 7 automated module-level testbenches in ModelSim.</li>
-      <li>Architected 3&times;128-entry memory and a 2-signal handshake bus for the controller and 4 arithmetic modules; resolved Yosys synthesis constraints using shift-based address offsets.</li>
-      <li>Executed an RTL-to-GDS flow including logic synthesis, place and route, and physical timing closure; designed standard-cell layouts in Virtuoso and verified in SimVision.</li>
+      <li>Built a matrix math coprocessor in SystemVerilog running on real FPGA hardware with keypad input and a seven-segment and LED display. Matrix operations are slow in software, so addition, multiplication, transposition and scalar multiplication move into hardware, the idea behind GPU and TPU accelerators.</li>
+      <li>Designed a main FSM sequencing input, matrix loading, operation select, calculation and output, with nested FSMs inside the arithmetic modules so a calculation runs across several clock cycles.</li>
+      <li>Split memory three ways for the two operands and the result, and separated memory addressing from operation control across two interface layers passing operands, dimensions and results on a valid, ready and done handshake.</li>
+      <li>Carried the design through an RTL-to-GDS flow: logic synthesis in Yosys, place and route, timing closure, and standard-cell layout in Virtuoso, with simulation in Icarus Verilog and waveform analysis in QuestaSim.</li>
     </ul>
-  </div>
-
-  <div class="entry">
-    <div class="entry-head">
-      <span class="role">Power and Hardware Engineer, Purdue Lunabotics</span>
-      <span class="date">Aug 2025 &ndash; Present</span>
-    </div>
-    <ul>
-      <li>Designed a 24V, 20A battery sensing and protection board around the TI BQ77915, capturing the schematic in KiCad, verifying the analog circuits in LTspice, and laying the board out for fabrication.</li>
-      <li>Assembled and hand-soldered 50+ components onto the fabricated board, bench tested it, and integrated it into the rover power distribution system.</li>
-    </ul>
-    <img class="shot" src="docs/BQ77915%20BPC%20design.jpg" alt="BQ77915 battery protection board" loading="lazy">
-
-    <img class="shot" src="docs/Lunabotics_Schematic.png" alt="Lunabotics battery protection schematic" loading="lazy">
-
-  </div>
-
-  <div class="entry">
-    <div class="entry-head">
-      <span class="role">Electrical Team Lead, <a href="https://www.ckrobotics.org/The-team/leaders-mentors/leaders" target="_blank" rel="noopener">FIRST Robotics Team 8020</a></span>
-      <span class="date">Aug 2023 &ndash; Jun 2024</span>
-    </div>
-    <ul>
-      <li>Drew the electrical schematic for each season's competition robot in KiCad and designed a modular power distribution scheme in which every subsystem meets the robot at a labeled connector, so a fault isolates by disconnecting one function.</li>
-      <li>Calibrated and programmed CAN bus motor controllers driving brushless actuators and encoders, with robot code written in LabVIEW.</li>
-    </ul>
-    <img class="shot" src="docs/2023%20Robot.png" alt="Team 8020 competition robot, 2023 season" loading="lazy">
-
   </div>
 
   <div class="entry">
@@ -170,38 +96,61 @@
       <span class="date">Jan 2026 &ndash; Present</span>
     </div>
     <ul>
-      <li>Simulated spatial kinematics and inverse dynamics in AnyBody from 3D ViCon motion-capture data, processed in MATLAB.</li>
-      <li>Consolidated a 16-module extraction, plotting, and reporting workflow into a single MATLAB pipeline handling inverse-dynamics and marker-tracking HDF5 trees exceeding 30,000 nodes.</li>
-      <li>Validated AnyBody-predicted ground reaction force against measured data across 10+ joint force and moment channels; cross-checked joint torque and force in Pinocchio.</li>
+      <li>Simulated spatial kinematics and inverse dynamics in AnyBody from 3D ViCon motion-capture data, processed in MATLAB, for a two-person assisted walking task.</li>
+      <li>Extracted and analyzed per-joint forces and torques, comparing the assisted side against the unassisted side to quantify how much load a helper actually removes.</li>
+      <li>Tested whether AnyBody&rsquo;s residual Hand of God force was masking failed ground reaction force prediction, reporting R&sup2; 0.03 and cosine similarity 0.58 as evidence against the hypothesis across 10+ force and moment channels.</li>
+      <li>Consolidated a 16-module extraction, plotting and reporting workflow into a single pipeline handling inverse-dynamics and marker-tracking HDF5 trees exceeding 30,000 nodes, with fallback path resolution that survives AnyBody changing its output layout.</li>
+      <li>Cross-checked joint torque and force in Pinocchio.</li>
     </ul>
+    <img class="shot" src="docs/Both30_GRFLeftvsRight.png" alt="Ground reaction force, left against right side" loading="lazy">
+    <img class="shot" src="docs/Single%20vs%20Interaction%20Forces.png" alt="Single-person against two-person interaction forces" loading="lazy">
   </div>
+</section>
 
-  <div class="entry">
-    <div class="entry-head">
-      <span class="role">Power and Hardware Engineer, Purdue Lunabotics</span>
-      <span class="date">Aug 2025 &ndash; Present</span>
-    </div>
-    <ul>
-      <li>Built a 24V, 20A battery sensing and protection board using the TI BQ77915.</li>
-      <li>Fabricated, soldered, and assembled 50+ components onto the PCB.</li>
-      <li>Designed and verified the circuits in KiCad and LTspice, then integrated the board into the rover power-distribution system.</li>
-    </ul>
-  </div>
+<section id="projects">
+  <h2>Projects</h2>
 
-  <div class="entry">
-    <div class="entry-head">
-      <span class="role">Electrical Team Lead, <a href="https://www.ckrobotics.org/The-team/leaders-mentors/leaders" target="_blank" rel="noopener">FIRST Robotics Team 8020</a></span>
-      <span class="date">Aug 2023 &ndash; Jun 2024</span>
+  
+
+  <article class="project">
+    <div class="project-head">
+      <h3>Rover Battery Protection Board</h3>
     </div>
-    <ul>
-      <li>Led a 10-member electrical team building and maintaining the robot electrical system.</li>
-      <li>Designed a modular electrical architecture, reducing debugging time by 50%.</li>
-      <li>Calibrated and programmed CAN-based motor controllers and integrated Limelight vision and color sensors.</li>
-      <li>Trained members in soldering, crimping, cable harnessing, and system debugging; reached 0% non-wetting solder defects.</li>
-      <li>Fabricated robot and field components using SolidWorks (3D CAD), 3D printing, laser cutting, and CNC machining; built and maintained competition fields for 7 teams.</li>
-      <li>Built demonstration control-system and sensor modules (ultrasonic, vision) for a robotics curriculum co-developed with ASUS.</li>
-    </ul>
-  </div>
+    <p class="meta">Purdue Lunabotics &middot; KiCad, LTspice, TI BQ77915</p>
+    <p>A 24V, 20A battery sensing and protection board for a competition rover. Schematic capture in KiCad, analog circuits verified in LTspice, board laid out for fabrication, then hand-assembled with 50+ components, bench tested, and integrated into the rover power distribution system.</p>
+    <img class="shot" src="docs/Lunabotics_Schematic.png" alt="Battery protection board schematic" loading="lazy">
+    <img class="shot" src="docs/BQ77915%20BPC%20design.jpg" alt="BQ77915 battery protection board" loading="lazy">
+  </article>
+
+  <article class="project">
+    <div class="project-head">
+      <h3>Adjustable DC-DC Boost Converter</h3>
+    </div>
+    <p class="meta">Purdue ECE 20007 &middot; Power electronics, LTspice, oscilloscope</p>
+    <p>A boost converter stepping a 5V input up to a 5V&ndash;30V output range, with the switching duty cycle sized from the boost transfer function rather than tuned empirically. A 555 timer generates the PWM driving an NMOS switch into an inductor. A PMOS output ceiling limiter holds the rail below its maximum under no load or a shorted load, a failure mode that otherwise destroys the output capacitors. Measured output reconciled against LTspice by accounting for wire and breadboard resistance, component tolerance, and device on-resistance.</p>
+    <img class="shot" src="docs/Boost%20Converter%20Schematic.png" alt="Boost converter schematic" loading="lazy">
+  </article>
+
+  <article class="project">
+    <div class="project-head">
+      <h3>Three-Band Analog Audio Equalizer</h3>
+    </div>
+    <p class="meta">Purdue ECE 20007 &middot; Analog design, op-amps, LTspice</p>
+    <p>A three-band equalizer splitting an input signal into low, mid and high bands with active RC filters, each independently adjustable. LM324 op-amps act as unity-gain buffers between the passive filters and the volume stages to remove loading effects, with per-band inverting amplifiers setting gain. The bands recombine without cross-loading and drive a speaker through a power amplifier stage delivering over 400&nbsp;mW into 8&nbsp;&ohm;.</p>
+    <img class="shot" src="docs/Audio%20Schematic.png" alt="Three-band audio equalizer schematic" loading="lazy">
+  </article>
+
+  <article class="project">
+    <div class="project-head">
+      <h3>Competition Robot Electronics</h3>
+      <a class="repo" href="https://www.ckrobotics.org/The-team/leaders-mentors/leaders" target="_blank" rel="noopener">Team</a>
+    </div>
+    <p class="meta">FIRST Robotics Team 8020, Electrical Team Lead &middot; 2023&ndash;2024 &middot; KiCad, CAN bus, LabVIEW</p>
+    <p>Drew the electrical schematic for each season&rsquo;s competition robot and designed a modular power distribution scheme in which every subsystem meets the robot at a labeled connector, so a fault isolates by disconnecting one function instead of tracing the whole harness. Calibrated and programmed CAN bus motor controllers driving brushless actuators and encoders, integrated machine vision into closed-loop control, and specified and crimped the harness across power, signal, CAN, network and pneumatic circuits.</p>
+    <img class="shot" src="docs/2023%20Robot.png" alt="Team 8020 competition robot, 2023 season" loading="lazy">
+  </article>
+
+  
 </section>
 
 <section id="education">
