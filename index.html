@@ -80,7 +80,7 @@
 
   <div class="entry">
     <div class="entry-head">
-      <span class="role">SoCET Intro Team Member, Purdue Elmore Family School of Electrical and Computer Engineering (SoCET)</span>
+      <span class="role">SoCET Intro Team Member, Purdue Elmore Family School of Electrical and Computer Engineering</span>
       <span class="date">Jan 2026 &ndash; Present</span>
     </div>
     <ul>
@@ -108,50 +108,50 @@
   </div>
 </section>
 
-<section id="projects">
-  <h2>Projects</h2>
+<section id="technical">
+  <h2>Technical Experience</h2>
 
-  
-
-  <article class="project">
-    <div class="project-head">
-      <h3>Rover Battery Protection Board</h3>
+  <div class="entry">
+    <div class="entry-head">
+      <span class="role">Power and Hardware Team Developer, Purdue Lunabotics</span>
+      <span class="date">Sep 2025 &ndash; Aug 2026</span>
     </div>
-    <p class="meta">Purdue Lunabotics &middot; KiCad, LTspice, TI BQ77915</p>
-    <p>A 24V, 20A battery sensing and protection board for a competition rover. Schematic capture in KiCad, analog circuits verified in LTspice, board laid out for fabrication, then hand-assembled with 50+ components, bench tested, and integrated into the rover power distribution system.</p>
+    <ul>
+      <li>Designed a 24V, 20A six-cell battery sensing and protection board around the TI BQ77915, capturing the schematic in KiCad and verifying the analog circuits in LTspice before committing to fabrication.</li>
+      <li>Laid the board out for fabrication, then hand-assembled and micro-soldered 50+ components onto the finished board.</li>
+      <li>Diagnosed voltage and thermal variances during bench testing to prevent system failure, and integrated the board into the rover power distribution system.</li>
+    </ul>
     <img class="shot" src="docs/Lunabotics_Schematic.png" alt="Battery protection board schematic" loading="lazy">
     <img class="shot" src="docs/BQ77915%20BPC%20design.jpg" alt="BQ77915 battery protection board" loading="lazy">
-  </article>
+  </div>
 
-  <article class="project">
-    <div class="project-head">
-      <h3>Adjustable DC-DC Boost Converter</h3>
+  <div class="entry">
+    <div class="entry-head">
+      <span class="role">Power Electronics Design Projects, Purdue ECE 20007</span>
+      <span class="date">Jan 2026 &ndash; May 2026</span>
     </div>
-    <p class="meta">Purdue ECE 20007 &middot; Power electronics, LTspice, oscilloscope</p>
-    <p>A boost converter stepping a 5V input up to a 5V&ndash;30V output range, with the switching duty cycle sized from the boost transfer function rather than tuned empirically. A 555 timer generates the PWM driving an NMOS switch into an inductor. A PMOS output ceiling limiter holds the rail below its maximum under no load or a shorted load, a failure mode that otherwise destroys the output capacitors. Measured output reconciled against LTspice by accounting for wire and breadboard resistance, component tolerance, and device on-resistance.</p>
+    <ul>
+      <li>Designed, built and measured an adjustable DC-DC boost converter stepping a 5V input to a 5V&ndash;30V range, sizing the switching duty cycle from the boost transfer function rather than tuning it empirically. A PMOS output ceiling limiter holds the rail under no load or a shorted load, a failure mode that otherwise destroys the output capacitors.</li>
+      <li>Reconciled measured output against LTspice by accounting for wire and breadboard resistance, component tolerance, and device on-resistance.</li>
+      <li>Designed a three-band analog audio equalizer with active RC filters, LM324 op-amp buffers placed to remove loading between the filter and volume stages, per-band inverting amplifiers for gain, and a power amplifier stage driving over 400&nbsp;mW into 8&nbsp;&ohm;.</li>
+    </ul>
     <img class="shot" src="docs/Boost%20Converter%20Schematic.png" alt="Boost converter schematic" loading="lazy">
-  </article>
-
-  <article class="project">
-    <div class="project-head">
-      <h3>Three-Band Analog Audio Equalizer</h3>
-    </div>
-    <p class="meta">Purdue ECE 20007 &middot; Analog design, op-amps, LTspice</p>
-    <p>A three-band equalizer splitting an input signal into low, mid and high bands with active RC filters, each independently adjustable. LM324 op-amps act as unity-gain buffers between the passive filters and the volume stages to remove loading effects, with per-band inverting amplifiers setting gain. The bands recombine without cross-loading and drive a speaker through a power amplifier stage delivering over 400&nbsp;mW into 8&nbsp;&ohm;.</p>
     <img class="shot" src="docs/Audio%20Schematic.png" alt="Three-band audio equalizer schematic" loading="lazy">
-  </article>
+  </div>
 
-  <article class="project">
-    <div class="project-head">
-      <h3>Competition Robot Electronics</h3>
-      <a class="repo" href="https://www.ckrobotics.org/The-team/leaders-mentors/leaders" target="_blank" rel="noopener">Team</a>
+  <div class="entry">
+    <div class="entry-head">
+      <span class="role">Electrical Team Lead, <a href="https://www.ckrobotics.org/The-team/leaders-mentors/leaders" target="_blank" rel="noopener">FIRST Robotics Team 8020</a></span>
+      <span class="date">Aug 2023 &ndash; Jun 2024</span>
     </div>
-    <p class="meta">FIRST Robotics Team 8020, Electrical Team Lead &middot; 2023&ndash;2024 &middot; KiCad, CAN bus, LabVIEW</p>
-    <p>Drew the electrical schematic for each season&rsquo;s competition robot and designed a modular power distribution scheme in which every subsystem meets the robot at a labeled connector, so a fault isolates by disconnecting one function instead of tracing the whole harness. Calibrated and programmed CAN bus motor controllers driving brushless actuators and encoders, integrated machine vision into closed-loop control, and specified and crimped the harness across power, signal, CAN, network and pneumatic circuits.</p>
+    <ul>
+      <li>Designed a modular power distribution scheme in which every subsystem meets the robot at a labeled connector, so an electrical fault isolates by disconnecting one function instead of tracing the whole harness.</li>
+      <li>Drew the electrical schematic for each season&rsquo;s competition robot in KiCad, and specified and crimped the harness across power, signal, CAN, network and pneumatic circuits, selecting connector type and wire gauge by current rating.</li>
+      <li>Calibrated and programmed CAN bus motor controllers driving brushless actuators and encoders, and integrated a multimodal sensor system of gyroscope, camera and color sensors into closed-loop control, with robot code written in LabVIEW.</li>
+      <li>Evaluated pneumatic control hardware against solenoid channel count, CAN compatibility and built-in protection, and documented the trade study.</li>
+    </ul>
     <img class="shot" src="docs/2023%20Robot.png" alt="Team 8020 competition robot, 2023 season" loading="lazy">
-  </article>
-
-  
+  </div>
 </section>
 
 <section id="education">
