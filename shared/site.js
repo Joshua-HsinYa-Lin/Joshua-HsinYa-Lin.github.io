@@ -527,7 +527,8 @@
     o = o || {};
     const on = o.on || '#ff2a2a';
     const off = o.off || 'rgba(255,255,255,0.06)';
-    const lit = SEG[String(ch).toUpperCase()] || '';
+    const s = String(ch);
+    const lit = s.charAt(0) === '#' ? s.slice(1) : (SEG[s.toUpperCase()] || '');
     const t = Math.max(2, w * 0.14);
     const gap = t * 0.35;
     const segs = {

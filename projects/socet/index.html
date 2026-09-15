@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A matrix coprocessor on an FPGA — Hsin Ya Lin</title>
+<meta name="description" content="A working emulation of a matrix math coprocessor: keypad, seven segment display, a 33 state control FSM, a three region memory map and a valid/ready handshake, one clock cycle at a time.">
+<link rel="stylesheet" href="../../shared/site.css">
+<script src="../../shared/site.js"></script>
+<style>
+.device { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 1rem; }
+@media (max-width: 760px) { .device { grid-template-columns: 1fr; } }
+.keypad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; max-width: 300px; margin: 0.6rem auto 0; }
+.key { font-family: var(--mono); font-size: 1rem; background: #2b3160; color: #fff; border: 1px solid #454c8a; border-radius: 6px; padding: 0.55rem 0; cursor: pointer; user-select: none; }
+.key:hover { background: #3a4180; }
+.key:active, .key.down { background: #ffb648; color: #1a1200; border-color: #ffb648; }
+.key small { display: block; font-size: 0.6rem; color: #aab1e0; font-family: var(--font); line-height: 1; margin-top: 2px; }
+.key:active small, .key.down small { color: #3a2a00; }
+.legend { font-family: var(--mono); font-size: 0.78rem; color: var(--panel-muted); margin: 0.5rem 0 0; }
+.legend b { color: var(--panel-ink); font-weight: 600; }
+.states { display: flex; flex-direction: column; gap: 0.35rem; }
+.sgroup { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.sgroup .gname { font-family: var(--mono); font-size: 0.7rem; color: var(--panel-muted); width: 6.2em; flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.04em; }
+.chip { font-family: var(--mono); font-size: 0.68rem; padding: 1px 6px; border-radius: 4px; border: 1px solid #222a38; color: #7d8798; background: #10141c; }
+.chip.cur { background: var(--amber); color: #1a1200; border-color: var(--amber); font-weight: 600; }
+.chip.seen { color: #b7c0cf; border-color: #34405a; }
+.side h4 { margin: 0.7rem 0 0.3rem; font-size: 0.8rem; font-family: var(--mono); color: var(--panel-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+.side h4:first-child { margin-top: 0; }
+.mini { font-family: var(--mono); font-size: 0.82rem; }
+.mini b { color: var(--amber); }
+.widget { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; align-items: start; }
+.bits { font-family: var(--mono); font-size: 0.95rem; line-height: 1.7; white-space: pre; overflow-x: auto; }
+.bits .k { color: var(--panel-muted); }
+.bits .v { color: var(--cyan); }
+.bits .s { color: var(--amber); }
+.bits .r { color: var(--green); font-weight: 600; }
+.flow { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.6rem; margin: 1rem 0; }
+.flow div { background: var(--bg2); border: 1px solid var(--rule); border-radius: 10px; padding: 0.6rem 0.75rem; font-size: 0.9rem; }
+.flow div b { display: block; font-size: 0.95rem; }
+.flow div span { color: var(--muted); font-family: var(--mono); font-size: 0.78rem; }
+</style>
+</head>
+<body>
+<header class="site-header" data-root="../../"></header>
+<main class="project">
+<div class="kicker">Purdue SoCET · System on Chip Extension Technologies</div>
+<h1>A matrix coprocessor on an FPGA</h1>
+<div class="when">Jan 2026 to present · West Lafayette, Indiana</div>
+<p class="lede">Matrix arithmetic is slow in software and is the reason GPUs and TPUs exist. This is the small version of that idea: a keypad, a display, four arithmetic units and 512 words of memory, run by one control state machine, on a real FPGA. Below is a working emulation of it, clock cycle by clock cycle.</p>
+<div class="tags"><span>SystemVerilog</span><span>FPGA</span><span>FSM design</span><span>valid/ready handshake</span><span>Yosys</span><span>Icarus Verilog</span><span>QuestaSim</span><span>Virtuoso</span><span>SimVision</span></div>
+
+<section class="sub" id="use">
+<h2>Use it</h2>
+<p>This runs the control logic of the design: the same 33 states, the same memory map and the same handshake with the arithmetic modules, stepped one clock at a time. Enter a matrix on the keypad the way the hardware asks for it, pick an operation, and watch the state machine work. Or press a demo and just watch.</p>
+<div class="panel">
+  <div class="device">
+    <div>
+      <canvas id="dev" aria-label="Seven segment display and LEDs"></canvas>
+      <div class="keypad" id="keypad"></div>
+      <p class="legend"><b>Y</b> enter · <b>Z</b> shift digit · <b>X</b> reset · <b>A</b> add · <b>B</b> multiply · <b>C</b> transpose · in output view <b>W A B D</b> move up left down right</p>
+      <div class="btnrow" id="demos"></div>
+      <div class="btnrow" id="clockrow"></div>
+      <div class="controls" id="clockctl"></div>
+    </div>
+    <div class="side">
+      <h4>Control FSM · current state</h4>
+      <div class="states" id="states"></div>
+      <h4>Memory · 512 words, three regions</h4>
+      <canvas id="mem" aria-label="Memory map"></canvas>
+      <h4>Handshake · last 120 cycles</h4>
+      <canvas id="trace" aria-label="Handshake waveforms"></canvas>
+      <div id="ro"></div>
+    </div>
+  </div>
+  <p class="hint">Keyboard works too: digits, A B C, W X Y Z, Enter for Y, Escape for X.</p>
+</div>
+<p>What to notice. Every keypress is a one cycle pulse, so the FSM edge detects the key rather than reading it level. Loading a matrix element is two states: one asserts the write, the next drops it and decides whether the row is finished. And once you press Y after the last element, most of the cycles that follow are not arithmetic. They are the controller fetching an operand from memory, waiting for it, handing it to a module, and waiting for the module to say it took it.</p>
+</section>
+
+<section class="sub" id="states-sec">
+<h2>33 states, and why most of them are about waiting</h2>
+<p>The main FSM sequences everything without a processor: dimension entry, element entry, operation choice, the calculation loop, and result navigation. It is binary encoded in six bits rather than one hot, since 33 flip flops for 33 states buys nothing at this size.</p>
+<p>The calculation loop is where the state count comes from. Reading one operand and delivering it to an arithmetic module takes six states: <span class="mono">FETCH</span> raises the memory read, <span class="mono">WAIT</span> gives the RAM a cycle, <span class="mono">LATCH</span> captures the data, <span class="mono">SEND</span> puts it on the module interface with <span class="mono">valid</span> high, then <span class="mono">ACK_LOW</span> and <span class="mono">ACK_HIGH</span> wait to see the module's <span class="mono">ready</span> go low and come back high. Both edges are required. If the controller only waited for <span class="mono">ready</span> high, a module that was already ready from the previous transfer would look like it had accepted data it never saw, and the same operand would be delivered twice. Two operands, so twelve states, plus the start handshake and the result write, and the count is what it is.</p>
+<figure><img src="fsm-diagram.png" alt="Main FSM diagram from the project report" loading="lazy"><figcaption>The top level flow from the project report. The emulator above shows the full state list, including the handshake substates the report diagram folds into each calculation box.</figcaption></figure>
+</section>
+
+<section class="sub" id="memory-sec">
+<h2>Three regions, one RAM</h2>
+<p>The memory is a single 512 word by 32 bit array. The controller carves it into three regions of 128 words at 0x000, 0x080 and 0x100, one each for the first operand, the second operand and the result, so a calculation can never overwrite an input it has not finished reading. Elements are stored row major: the address of row <em>r</em>, column <em>c</em> in a matrix with <em>C</em> columns is <span class="mono">base + (r &minus; 1)&middot;C + (c &minus; 1)</span>. A 9 by 9 matrix uses 81 words, which is why 128 is enough.</p>
+<div class="panel">
+  <div class="widget">
+    <div class="controls" id="addrctl" style="margin-top:0"></div>
+    <div class="bits" id="addrout"></div>
+  </div>
+</div>
+<p>Memory access goes through its own interface, <span class="mono">mem_if.sv</span>, carrying write enable, read enable, address, write data, read data and a ready. The arithmetic modules never touch memory. The controller reads for them and writes their results back, which keeps the modules simple and keeps the bus without an arbiter.</p>
+</section>
+
+<section class="sub" id="shift-sec">
+<h2>Multiplying without a multiplier</h2>
+<p>Row major addressing needs <span class="mono">row &times; columns</span>, and the first version wrote it as a general 32 by 32 multiply. Yosys, the open source synthesizer, crashed on the resulting <span class="mono">$macc_v2</span> cell. The dimension is never larger than nine, so the multiply was replaced with a ten way case of shifts and adds. Seven times a value is the value shifted left three minus the value. That is not a workaround; a general multiplier was the wrong part for a bounded operand, and the replacement is a small mux.</p>
+<div class="panel">
+  <div class="widget">
+    <div>
+      <div class="btnrow" id="dimrow" style="margin-top:0"></div>
+      <div class="controls" id="shiftctl"></div>
+    </div>
+    <div class="bits" id="shiftout"></div>
+  </div>
+</div>
+</section>
+
+<section class="sub" id="if-sec">
+<h2>Two interface layers</h2>
+<p>The design separates memory access from operation control. <span class="mono">mem_if.sv</span> is the memory side. <span class="mono">matrix_if.sv</span> is the module side, carrying <span class="mono">valid</span>, <span class="mono">ready</span>, the row and column sizes and a data word, and every arithmetic module speaks it: addition, multiplication, transposition and scalar multiplication. A module can be swapped or added without the controller changing shape, and the controller can be tested against a module testbench without memory in the loop. Each module has its own small FSM inside, so an operation that needs several cycles, such as accumulating a dot product, runs across them without the main FSM knowing how many.</p>
+<figure><img src="interfaces.png" alt="Interface layer diagram: mem_if and matrix_if between the controller, memory and the operation modules" loading="lazy"><figcaption>Interface layer from the project report.</figcaption></figure>
+<figure><img src="block-diagram.png" alt="Module block diagram" loading="lazy"><figcaption>Module structure: top, main FSM, display, memory, and the four arithmetic modules behind one interface.</figcaption></figure>
+</section>
+
+<section class="sub" id="flow-sec">
+<h2>From RTL to layout</h2>
+<p>The RTL was verified with seven module level testbenches, then carried through a physical implementation flow. The process and tool configuration are the team's and stay off this page; the shape of the flow is standard.</p>
+<div class="flow">
+  <div><b>Write</b><span>SystemVerilog</span></div>
+  <div><b>Simulate</b><span>Icarus Verilog, QuestaSim waveforms</span></div>
+  <div><b>Synthesize</b><span>Yosys, RTL to netlist</span></div>
+  <div><b>Place and route</b><span>cells onto a floorplan</span></div>
+  <div><b>Timing closure</b><span>setup and hold met</span></div>
+  <div><b>Cell layout</b><span>standard cells in Virtuoso</span></div>
+  <div><b>Verify</b><span>SimVision</span></div>
+</div>
+<div class="figs">
+<figure><img src="questasim.jpg" alt="QuestaSim waveform of the add interface handshake" loading="lazy"><figcaption>QuestaSim: the main FSM state alongside <span class="mono">add_if.valid</span> and <span class="mono">add_if.ready</span>. The trace panel in the emulator shows the same signals.</figcaption></figure>
+<figure><img src="sim-result.jpg" alt="FPGA interface showing 124 being entered" loading="lazy"><figcaption>Entering an element: the value on the display, row and column progress on the LEDs, blue for in progress.</figcaption></figure>
+</div>
+</section>
+
+<section class="sub" id="riscv-sec">
+<h2>Now: a RISC-V system on chip</h2>
+<p>This semester the team is building a RISC-V system on chip targeted at an FPGA, and my block is the SPI controller that reads the inertial sensor. SPI is a four wire synchronous bus, and the whole design question for a controller is the two bits that define its mode: which clock level is idle, and which clock edge samples data. Pick a mode below and read the byte off the wires.</p>
+<div class="panel">
+  <canvas id="spi" aria-label="SPI waveforms"></canvas>
+  <div class="btnrow" id="spimode"></div>
+  <div class="controls" id="spictl"></div>
+  <p class="hint" id="spinote"></p>
+</div>
+<p>The connection back to the satellite work is direct: last summer the firmware read a nine axis IMU and ran quaternion attitude control in C on a microcontroller. Now the sensor read is a hardware block I am writing, one layer down.</p>
+</section>
+
+<p class="note">Source for the matrix coprocessor is public at <a href="https://github.com/Joshua-HsinYa-Lin/socet-matrix-calculator" target="_blank" rel="noopener">github.com/Joshua-HsinYa-Lin/socet-matrix-calculator</a>. The emulator on this page ports its control FSM, memory module and module handshakes; values are kept as plain integers so results read in decimal.</p>
+
+<div class="next"><a href="../../#projects">All projects</a><a href="../tasa/">Next: pointing a satellite with spinning wheels</a></div>
+</main>
+<footer class="site-footer"></footer>
+
+<script>
+(function () {
+  const C = Site.colors;
+
+  /* Cycle level model of the coprocessor. Register names follow main.sv.
+     Nonblocking semantics: every module reads the pre-clock registers r and
+     writes the post-clock registers n, then n becomes r.
+
+     Deviations from the repository snapshot, on purpose:
+     1. Typed values are plain integers rather than one BCD nibble per key,
+        so results display in decimal. Control flow is unchanged.
+     2. The multiply module in the snapshot latches the start pulse as its
+        first operand and pulses done for one cycle that the main FSM then
+        waits on after the pulse has passed. Here it carries the same ready
+        guard the add and transpose modules have, and holds done until the
+        next start, so multiplication completes. */
+  const STATES = [
+    'S_INIT', 'S_DIM_M1_COL', 'S_LOAD_M1', 'S_LOAD_M1_ACK',
+    'S_OP_SELECT',
+    'S_DIM_M2_COL', 'S_LOAD_M2', 'S_LOAD_M2_ACK', 'S_CALC_SETUP',
+    'S_CALC_START', 'S_CALC_START_WAIT_LOW', 'S_CALC_START_WAIT_HIGH',
+    'S_CALC_FETCH_A', 'S_CALC_WAIT_A', 'S_CALC_LATCH_A', 'S_CALC_SEND_A', 'S_CALC_ACK_A_LOW', 'S_CALC_ACK_A_HIGH',
+    'S_CALC_FETCH_B', 'S_CALC_WAIT_B', 'S_CALC_LATCH_B', 'S_CALC_SEND_B', 'S_CALC_ACK_B_LOW', 'S_CALC_ACK_B_HIGH',
+    'S_CALC_WAIT_RES', 'S_CALC_WRITE_RES', 'S_CALC_NEXT_WAIT_HIGH', 'S_CALC_DONE_WAIT',
+    'S_OUT_IDLE_SETUP', 'S_OUT_FETCH', 'S_OUT_FETCH_WAIT', 'S_OUT_FETCH_ACK', 'S_OUT_IDLE'
+  ];
+  const GROUPS = [
+    ['matrix 1', STATES.slice(0, 4)],
+    ['operation', STATES.slice(4, 5)],
+    ['matrix 2', STATES.slice(5, 9)],
+    ['start', STATES.slice(9, 12)],
+    ['operand A', STATES.slice(12, 18)],
+    ['operand B', STATES.slice(18, 24)],
+    ['result', STATES.slice(24, 28)],
+    ['output', STATES.slice(28, 33)]
+  ];
+  const BASE_M1 = 0x000;
+  const BASE_M2 = 0x080;
+  const BASE_OUT = 0x100;
+  const K = { W: 16, X: 17, Y: 18, Z: 19, A: 10, B: 11, C: 12, D: 13, E: 14, F: 15 };
+
+  const ram = new Array(512).fill(0);
+  const written = new Uint8Array(512);
+
+  function fresh() {
+    return {
+      state: 'S_INIT', input_buf: 0, error_flag: 0, ready_flag: 0, op_type: 0,
+      m1_r: 0, m1_c: 0, m2_r: 0, m2_c: 0, out_r: 0, out_c: 0, curr_r: 0, curr_c: 0,
+      calc_i: 0, calc_j: 0, calc_k: 0, temp_rdata: 0, display_data: 0, sys_state: 0, prompt_type: 0,
+      sum_ready: 0, trans_ready: 0, pb_prev: 0,
+      mem: { wen: 0, ren: 0, addr: 0, wdata: 0, rdata: 0, ready: 0 },
+      add: { valid: 0, rsize: 0, csize: 0, data: 0, ready: 0, st: 'IDLE', A: 0, B: 0, cnt: 0, total: 0, sum_out: 0, sum_valid: 0, done: 0 },
+      vec: { valid: 0, rsize: 0, csize: 0, data: 0, ready: 0, st: 'IDLE', acc: 0, idx: 0, len: 0, A: 0, B: 0, product: 0, done: 0 },
+      tra: { valid: 0, rsize: 0, csize: 0, data: 0, ready: 0, st: 'IDLE', cnt: 0, total: 0, row: 0, col: 0, out: 0, dr: 0, dc: 0, tvalid: 0, done: 0 }
+    };
+  }
+  function clone(r) {
+    return Object.assign({}, r, { mem: Object.assign({}, r.mem), add: Object.assign({}, r.add), vec: Object.assign({}, r.vec), tra: Object.assign({}, r.tra) });
+  }
+  function resetMain(n) {
+    const f = fresh();
+    for (const k in f) if (k !== 'mem' && k !== 'add' && k !== 'vec' && k !== 'tra' && k !== 'pb_prev') n[k] = f[k];
+    n.mem.wen = 0; n.mem.ren = 0;
+    n.add.valid = 0; n.vec.valid = 0; n.tra.valid = 0;
+    n.sum_ready = 0; n.trans_ready = 0;
+  }
+  function readyOf(r, op) { return op === 1 ? r.add.ready : op === 2 ? r.vec.ready : r.tra.ready; }
+  function setValid(n, op, v) { n.add.valid = op === 1 ? v : 0; n.vec.valid = op === 2 ? v : 0; n.tra.valid = op === 3 ? v : 0; }
+  function digitIn(buf, d) { return Math.floor(buf / 10) * 10 + d; }
+
+  function step(r, pb) {
+    const n = clone(r);
+    const pulse = pb & ~r.pb_prev;
+    n.pb_prev = pb;
+    const P = function (k) { return (pulse >>> k) & 1; };
+    let valid_num = false;
+    let num_val = 0;
+    for (let i = 0; i <= 9; i++) if (P(i)) { valid_num = true; num_val = i; }
+    const op = r.op_type;
+
+    if (P(K.X)) {
+      resetMain(n);
+    } else {
+      switch (r.state) {
+        case 'S_INIT':
+          n.sys_state = 1; n.prompt_type = 1; n.mem.wen = 0; n.mem.ren = 0; n.display_data = r.input_buf;
+          if (valid_num) n.input_buf = num_val;
+          if (P(K.Y)) {
+            if (r.input_buf === 0 || r.input_buf > 9) n.error_flag = 1;
+            else { n.m1_r = r.input_buf; n.input_buf = 0; n.error_flag = 0; n.state = 'S_DIM_M1_COL'; }
+          }
+          break;
+        case 'S_DIM_M1_COL':
+          n.prompt_type = 2; n.display_data = r.input_buf;
+          if (valid_num) n.input_buf = num_val;
+          if (P(K.Y)) {
+            if (r.input_buf === 0 || r.input_buf > 9) n.error_flag = 1;
+            else { n.m1_c = r.input_buf; n.input_buf = 0; n.error_flag = 0; n.curr_r = 1; n.curr_c = 1; n.state = 'S_LOAD_M1'; }
+          }
+          break;
+        case 'S_LOAD_M1':
+          n.sys_state = 2; n.prompt_type = 6; n.display_data = r.input_buf;
+          if (valid_num) n.input_buf = digitIn(r.input_buf, num_val);
+          if (P(K.Z)) n.input_buf = (r.input_buf * 10) % 1000;
+          if (P(K.Y)) {
+            n.mem.addr = BASE_M1 + (r.curr_r - 1) * r.m1_c + (r.curr_c - 1);
+            n.mem.wdata = r.input_buf; n.mem.wen = 1; n.state = 'S_LOAD_M1_ACK';
+          }
+          break;
+        case 'S_LOAD_M1_ACK':
+          n.mem.wen = 0; n.input_buf = 0;
+          if (r.curr_c === r.m1_c) {
+            if (r.curr_r === r.m1_r) { n.ready_flag = 1; n.state = 'S_OP_SELECT'; }
+            else { n.curr_r = r.curr_r + 1; n.curr_c = 1; n.state = 'S_LOAD_M1'; }
+          } else { n.curr_c = r.curr_c + 1; n.state = 'S_LOAD_M1'; }
+          break;
+        case 'S_OP_SELECT':
+          n.sys_state = 1; n.display_data = 0;
+          n.prompt_type = op === 1 ? 3 : op === 2 ? 4 : op === 3 ? 5 : 0;
+          if (P(K.A)) n.op_type = 1;
+          if (P(K.B)) n.op_type = 2;
+          if (P(K.C)) n.op_type = 3;
+          if (P(K.Y) && op !== 0) {
+            n.ready_flag = 0; n.curr_r = 1; n.curr_c = 1; n.input_buf = 0;
+            if (op === 1) { n.m2_r = r.m1_r; n.m2_c = r.m1_c; n.out_r = r.m1_r; n.out_c = r.m1_c; n.state = 'S_LOAD_M2'; }
+            else if (op === 2) { n.m2_r = r.m1_c; n.out_r = r.m1_r; n.state = 'S_DIM_M2_COL'; }
+            else { n.out_r = r.m1_c; n.out_c = r.m1_r; n.state = 'S_CALC_SETUP'; }
+          }
+          break;
+        case 'S_DIM_M2_COL':
+          n.prompt_type = 2; n.display_data = r.input_buf;
+          if (valid_num) n.input_buf = num_val;
+          if (P(K.Y)) {
+            if (r.input_buf === 0 || r.input_buf > 9) n.error_flag = 1;
+            else { n.m2_c = r.input_buf; n.out_c = r.input_buf; n.input_buf = 0; n.error_flag = 0; n.curr_r = 1; n.curr_c = 1; n.state = 'S_LOAD_M2'; }
+          }
+          break;
+        case 'S_LOAD_M2':
+          n.sys_state = 2; n.prompt_type = 6; n.display_data = r.input_buf;
+          if (valid_num) n.input_buf = digitIn(r.input_buf, num_val);
+          if (P(K.Z)) n.input_buf = (r.input_buf * 10) % 1000;
+          if (P(K.Y)) {
+            n.mem.addr = BASE_M2 + (r.curr_r - 1) * r.m2_c + (r.curr_c - 1);
+            n.mem.wdata = r.input_buf; n.mem.wen = 1; n.state = 'S_LOAD_M2_ACK';
+          }
+          break;
+        case 'S_LOAD_M2_ACK':
+          n.mem.wen = 0; n.input_buf = 0;
+          if (r.curr_c === r.m2_c) {
+            if (r.curr_r === r.m2_r) { n.ready_flag = 1; n.state = 'S_CALC_SETUP'; }
+            else { n.curr_r = r.curr_r + 1; n.curr_c = 1; n.state = 'S_LOAD_M2'; }
+          } else { n.curr_c = r.curr_c + 1; n.state = 'S_LOAD_M2'; }
+          break;
+        case 'S_CALC_SETUP':
+          n.calc_i = 0; n.calc_j = 0; n.calc_k = 0; n.state = 'S_CALC_START';
+          break;
+        case 'S_CALC_START':
+          n.sys_state = 3;
+          n.prompt_type = op === 1 ? 3 : op === 2 ? 4 : 5;
+          n.add.rsize = r.m1_r; n.add.csize = r.m1_c;
+          n.vec.rsize = r.m1_r; n.vec.csize = r.m1_c;
+          n.tra.rsize = r.m1_r; n.tra.csize = r.m1_c;
+          setValid(n, op, 1);
+          n.state = 'S_CALC_START_WAIT_LOW';
+          break;
+        case 'S_CALC_START_WAIT_LOW':
+          if (!readyOf(r, op)) { setValid(n, op, 0); n.state = 'S_CALC_START_WAIT_HIGH'; }
+          break;
+        case 'S_CALC_START_WAIT_HIGH':
+          if (readyOf(r, op)) n.state = 'S_CALC_FETCH_A';
+          break;
+        case 'S_CALC_FETCH_A':
+          n.mem.ren = 1;
+          if (op === 1 || op === 3) n.mem.addr = BASE_M1 + r.calc_i;
+          else n.mem.addr = BASE_M1 + r.calc_i * r.m1_c + r.calc_k;
+          n.state = 'S_CALC_WAIT_A';
+          break;
+        case 'S_CALC_WAIT_A': n.mem.ren = 0; n.state = 'S_CALC_LATCH_A'; break;
+        case 'S_CALC_LATCH_A': n.temp_rdata = r.mem.rdata; n.state = 'S_CALC_SEND_A'; break;
+        case 'S_CALC_SEND_A':
+          if (op === 1) n.add.data = r.temp_rdata;
+          if (op === 2) n.vec.data = r.temp_rdata;
+          if (op === 3) n.tra.data = r.temp_rdata;
+          setValid(n, op, 1);
+          n.state = 'S_CALC_ACK_A_LOW';
+          break;
+        case 'S_CALC_ACK_A_LOW':
+          if (!readyOf(r, op)) { setValid(n, op, 0); n.state = op === 3 ? 'S_CALC_WAIT_RES' : 'S_CALC_ACK_A_HIGH'; }
+          break;
+        case 'S_CALC_ACK_A_HIGH':
+          if ((op === 1 && r.add.ready) || (op === 2 && r.vec.ready)) n.state = 'S_CALC_FETCH_B';
+          break;
+        case 'S_CALC_FETCH_B':
+          n.mem.ren = 1;
+          if (op === 1) n.mem.addr = BASE_M2 + r.calc_i;
+          else n.mem.addr = BASE_M2 + r.calc_k * r.m2_c + r.calc_j;
+          n.state = 'S_CALC_WAIT_B';
+          break;
+        case 'S_CALC_WAIT_B': n.mem.ren = 0; n.state = 'S_CALC_LATCH_B'; break;
+        case 'S_CALC_LATCH_B': n.temp_rdata = r.mem.rdata; n.state = 'S_CALC_SEND_B'; break;
+        case 'S_CALC_SEND_B':
+          if (op === 1) n.add.data = r.temp_rdata;
+          if (op === 2) n.vec.data = r.temp_rdata;
+          setValid(n, op, 1);
+          n.state = 'S_CALC_ACK_B_LOW';
+          break;
+        case 'S_CALC_ACK_B_LOW':
+          if (!readyOf(r, op)) {
+            setValid(n, op, 0);
+            if (op === 2) n.state = (r.calc_k + 1 === r.m1_c) ? 'S_CALC_WAIT_RES' : 'S_CALC_ACK_B_HIGH';
+            else n.state = 'S_CALC_WAIT_RES';
+          }
+          break;
+        case 'S_CALC_ACK_B_HIGH':
+          if (op === 2 && r.vec.ready) { n.calc_k = r.calc_k + 1; n.state = 'S_CALC_FETCH_A'; }
+          break;
+        case 'S_CALC_WAIT_RES':
+          n.sum_ready = 1; n.trans_ready = 1;
+          if (op === 1 && r.add.sum_valid) {
+            n.mem.wdata = r.add.sum_out; n.mem.addr = BASE_OUT + r.calc_i; n.mem.wen = 1; n.state = 'S_CALC_WRITE_RES';
+          } else if (op === 2 && r.vec.done) {
+            n.mem.wdata = r.vec.product; n.mem.addr = BASE_OUT + r.calc_i * r.out_c + r.calc_j; n.mem.wen = 1; n.state = 'S_CALC_WRITE_RES';
+          } else if (op === 3 && r.tra.tvalid) {
+            n.mem.wdata = r.tra.out; n.mem.addr = BASE_OUT + r.tra.dr * r.out_c + r.tra.dc; n.mem.wen = 1; n.state = 'S_CALC_WRITE_RES';
+          }
+          break;
+        case 'S_CALC_WRITE_RES':
+          if ((op === 1 && !r.add.sum_valid) || (op === 3 && !r.tra.tvalid) || op === 2) {
+            n.sum_ready = 0; n.trans_ready = 0; n.mem.wen = 0;
+            if (op === 1 || op === 3) {
+              if (r.calc_i + 1 === r.m1_r * r.m1_c) n.state = 'S_CALC_DONE_WAIT';
+              else { n.calc_i = r.calc_i + 1; n.state = 'S_CALC_NEXT_WAIT_HIGH'; }
+            } else {
+              if (r.calc_j + 1 === r.m2_c) {
+                n.calc_j = 0;
+                if (r.calc_i + 1 === r.m1_r) n.state = 'S_CALC_DONE_WAIT';
+                else { n.calc_i = r.calc_i + 1; n.calc_k = 0; n.state = 'S_CALC_START'; }
+              } else { n.calc_j = r.calc_j + 1; n.calc_k = 0; n.state = 'S_CALC_START'; }
+            }
+          }
+          break;
+        case 'S_CALC_NEXT_WAIT_HIGH':
+          if ((op === 1 && r.add.ready) || (op === 3 && r.tra.ready)) n.state = 'S_CALC_FETCH_A';
+          break;
+        case 'S_CALC_DONE_WAIT':
+          if ((op === 1 && r.add.done) || (op === 3 && r.tra.done) || (op === 2 && r.vec.done)) n.state = 'S_OUT_IDLE_SETUP';
+          break;
+        case 'S_OUT_IDLE_SETUP': n.curr_r = 1; n.curr_c = 1; n.state = 'S_OUT_FETCH'; break;
+        case 'S_OUT_FETCH':
+          n.sys_state = 2; n.prompt_type = 6;
+          n.mem.addr = BASE_OUT + (r.curr_r - 1) * r.out_c + (r.curr_c - 1);
+          n.mem.ren = 1; n.state = 'S_OUT_FETCH_WAIT';
+          break;
+        case 'S_OUT_FETCH_WAIT': n.mem.ren = 0; n.state = 'S_OUT_FETCH_ACK'; break;
+        case 'S_OUT_FETCH_ACK': n.display_data = r.mem.rdata; n.state = 'S_OUT_IDLE'; break;
+        case 'S_OUT_IDLE':
+          n.sys_state = 2; n.prompt_type = 6;
+          if (P(K.W) && r.curr_r > 1) { n.curr_r = r.curr_r - 1; n.state = 'S_OUT_FETCH'; }
+          if (P(K.B) && r.curr_r < r.out_r) { n.curr_r = r.curr_r + 1; n.state = 'S_OUT_FETCH'; }
+          if (P(K.A) && r.curr_c > 1) { n.curr_c = r.curr_c - 1; n.state = 'S_OUT_FETCH'; }
+          if (P(K.D) && r.curr_c < r.out_c) { n.curr_c = r.curr_c + 1; n.state = 'S_OUT_FETCH'; }
+          break;
+        default: n.state = 'S_INIT';
+      }
+    }
+
+    /* memory.sv */
+    if ((r.mem.wen || r.mem.ren) && !r.mem.ready) {
+      const a = r.mem.addr & 511;
+      if (r.mem.wen) { ram[a] = r.mem.wdata; written[a] = 1; }
+      if (r.mem.ren) n.mem.rdata = ram[a];
+      n.mem.ready = 1;
+    } else n.mem.ready = 0;
+
+    /* add.sv */
+    {
+      const m = r.add, o = n.add;
+      switch (m.st) {
+        case 'IDLE':
+          o.done = 0; o.sum_valid = 0;
+          if (!m.ready) o.ready = 1;
+          else if (m.valid) { o.cnt = 0; o.total = m.rsize * m.csize; o.ready = 0; o.st = 'FETCH_A'; }
+          break;
+        case 'FETCH_A':
+          if (!m.ready) o.ready = 1;
+          else if (m.valid) { o.A = m.data; o.ready = 0; o.st = 'FETCH_B'; }
+          break;
+        case 'FETCH_B':
+          if (!m.ready) o.ready = 1;
+          else if (m.valid) { o.B = m.data; o.ready = 0; o.st = 'SEND_SUM'; }
+          break;
+        case 'SEND_SUM':
+          o.sum_out = m.A + m.B; o.sum_valid = 1;
+          if (r.sum_ready) { o.sum_valid = 0; o.cnt = m.cnt + 1; o.st = (m.cnt + 1 === m.total) ? 'DONE' : 'FETCH_A'; }
+          break;
+        case 'DONE':
+          o.done = 1;
+          if (!m.valid) o.st = 'IDLE';
+          break;
+      }
+    }
+    /* vector.sv, with the ready guard and held done described above */
+    {
+      const m = r.vec, o = n.vec;
+      switch (m.st) {
+        case 'IDLE':
+          if (m.valid) { o.done = 0; o.acc = 0; o.idx = 0; o.len = m.csize; o.ready = 0; o.st = 'FETCH_A'; }
+          else o.ready = 1;
+          break;
+        case 'FETCH_A':
+          if (!m.ready) o.ready = 1;
+          else if (m.valid) { o.A = m.data; o.ready = 0; o.st = 'FETCH_B'; }
+          break;
+        case 'FETCH_B':
+          if (!m.ready) o.ready = 1;
+          else if (m.valid) { o.B = m.data; o.ready = 0; o.st = 'ACC'; }
+          break;
+        case 'ACC':
+          o.acc = m.acc + m.A * m.B; o.idx = m.idx + 1; o.st = 'CHECK';
+          break;
+        case 'CHECK':
+          if (m.idx === m.len) { o.product = m.acc; o.st = 'DONE'; }
+          else o.st = 'FETCH_A';
+          break;
+        case 'DONE':
+          o.done = 1;
+          if (!m.valid) o.st = 'IDLE';
+          break;
+      }
+    }
+    /* transpose.sv */
+    {
+      const m = r.tra, o = n.tra;
+      switch (m.st) {
+        case 'IDLE':
+          o.done = 0; o.tvalid = 0;
+          if (!m.ready) o.ready = 1;
+          else if (m.valid) { o.cnt = 0; o.total = m.rsize * m.csize; o.row = 0; o.col = 0; o.ready = 0; o.st = 'FETCH'; }
+          break;
+        case 'FETCH':
+          if (!m.ready) o.ready = 1;
+          else if (m.valid) { o.out = m.data; o.dr = m.col; o.dc = m.row; o.ready = 0; o.st = 'SEND'; }
+          break;
+        case 'SEND':
+          o.tvalid = 1;
+          if (r.trans_ready) {
+            o.tvalid = 0; o.cnt = m.cnt + 1;
+            if (m.col + 1 === m.csize) { o.col = 0; o.row = m.row + 1; } else o.col = m.col + 1;
+            o.st = (m.cnt + 1 === m.total) ? 'DONE' : 'FETCH';
+          }
+          break;
+        case 'DONE':
+          o.done = 1;
+          if (!m.valid) o.st = 'IDLE';
+          break;
+      }
+    }
+    return n;
+  }
+
+  /* Emulator state */
+  let r = fresh();
+  let cycle = 0;
+  let pb = 0;
+  const holds = new Int8Array(21);
+  let running = true;
+  let freq = 24;
+  let acc = 0;
+  let script = null;
+  let scriptNext = 0;
+  const TR = 120;
+  const trace = [];
+  const seen = {};
+  let lastAddr = -1;
+  let lastAddrAge = 99;
+
+  function pressKey(k) {
+    holds[k] = 3;
+    const btn = keyBtns[k];
+    if (btn) { btn.classList.add('down'); setTimeout(function () { btn.classList.remove('down'); }, 120); }
+  }
+  function clockOnce() {
+    pb = 0;
+    for (let k = 0; k < 21; k++) if (holds[k] > 0) { pb |= (1 << k); holds[k]--; }
+    if (script && cycle >= scriptNext) {
+      const it = script[0];
+      if (typeof it === 'number') { script.shift(); pressKey(it); scriptNext = cycle + 8; }
+      else if (it && it.wait) { if (r.state === it.wait) { script.shift(); scriptNext = cycle + 12; } }
+      if (script.length === 0) script = null;
+    }
+    const prev = r;
+    r = step(r, pb);
+    cycle++;
+    seen[r.state] = 1;
+    if (prev.mem.wen || prev.mem.ren) { if (!prev.mem.ready) { lastAddr = prev.mem.addr & 511; lastAddrAge = 0; } }
+    else lastAddrAge++;
+    const op = r.op_type;
+    const ifc = op === 2 ? r.vec : op === 3 ? r.tra : r.add;
+    trace.push({
+      valid: ifc.valid, ready: ifc.ready,
+      res: op === 1 ? r.add.sum_valid : op === 2 ? r.vec.done : op === 3 ? r.tra.tvalid : 0,
+      ack: op === 3 ? r.trans_ready : r.sum_ready,
+      wen: r.mem.wen, ren: r.mem.ren, mready: r.mem.ready
+    });
+    if (trace.length > TR) trace.shift();
+  }
+  function hardReset() {
+    r = fresh();
+    ram.fill(0); written.fill(0);
+    trace.length = 0;
+    for (const k in seen) delete seen[k];
+    cycle = 0; script = null; lastAddr = -1;
+    holds.fill(0);
+  }
+
+  /* Keypad, matching the FPGA simulator layout */
+  const keyBtns = {};
+  const LAYOUT = [['Z', 19, 'shift'], ['Y', 18, 'enter'], ['X', 17, 'reset'], ['W', 16, 'up'],
+    ['F', 15, ''], ['E', 14, ''], ['D', 13, 'right'], ['C', 12, 'transpose'],
+    ['B', 11, 'multiply'], ['A', 10, 'add'], ['9', 9, ''], ['8', 8, ''],
+    ['7', 7, ''], ['6', 6, ''], ['5', 5, ''], ['4', 4, ''],
+    ['3', 3, ''], ['2', 2, ''], ['1', 1, ''], ['0', 0, '']];
+  const kp = document.getElementById('keypad');
+  LAYOUT.forEach(function (k) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'key';
+    b.innerHTML = k[0] + '<small>' + (k[2] || '&nbsp;') + '</small>';
+    b.addEventListener('click', function () { pressKey(k[1]); if (!running) burst(6); });
+    kp.appendChild(b);
+    keyBtns[k[1]] = b;
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+    const c = e.key.toUpperCase();
+    let k = -1;
+    if (c >= '0' && c <= '9' && c.length === 1) k = +c;
+    else if ('ABCDEF'.indexOf(c) >= 0 && c.length === 1) k = 10 + 'ABCDEF'.indexOf(c);
+    else if (c === 'W') k = 16; else if (c === 'X' || c === 'ESCAPE') k = 17;
+    else if (c === 'Y' || c === 'ENTER') k = 18; else if (c === 'Z') k = 19;
+    if (k < 0) return;
+    const rect = kp.getBoundingClientRect();
+    if (rect.bottom < 0 || rect.top > window.innerHeight) return;
+    e.preventDefault();
+    pressKey(k);
+    if (!running) burst(6);
+  });
+  let burstLeft = 0;
+  function burst(n) { burstLeft = Math.max(burstLeft, n); }
+
+  /* Demos */
+  const demos = document.getElementById('demos');
+  function runDemo(keys, hz) {
+    hardReset();
+    running = true; runBtn.textContent = 'Pause';
+    freq = hz; clk.value = Math.log10(hz);
+    script = keys.slice();
+    scriptNext = cycle + 4;
+  }
+  Site.button(demos, { label: 'Demo: 2×2 add', primary: true, onClick: function () {
+    runDemo([2, 18, 2, 18, 1, 18, 2, 18, 3, 18, 4, 18, 10, 18, 5, 18, 6, 18, 7, 18, 8, 18, { wait: 'S_OUT_IDLE' }, 13, { wait: 'S_OUT_IDLE' }, 11, { wait: 'S_OUT_IDLE' }, 10], 30);
+  } });
+  Site.button(demos, { label: 'Demo: 2×3 · 3×2 multiply', onClick: function () {
+    runDemo([2, 18, 3, 18, 1, 18, 2, 18, 3, 18, 4, 18, 5, 18, 6, 18, 11, 18, 2, 18, 7, 18, 8, 18, 9, 18, 1, 19, 0, 18, 1, 19, 1, 18, 1, 19, 2, 18, { wait: 'S_OUT_IDLE' }, 13, { wait: 'S_OUT_IDLE' }, 11, { wait: 'S_OUT_IDLE' }, 10], 40);
+  } });
+  Site.button(demos, { label: 'Demo: 3×2 transpose', onClick: function () {
+    runDemo([3, 18, 2, 18, 1, 18, 2, 18, 3, 18, 4, 18, 5, 18, 6, 18, 12, 18, { wait: 'S_OUT_IDLE' }, 13, { wait: 'S_OUT_IDLE' }, 13, { wait: 'S_OUT_IDLE' }, 11], 40);
+  } });
+
+  const clockrow = document.getElementById('clockrow');
+  const runBtn = Site.button(clockrow, { label: 'Pause', onClick: function (b) { running = !running; b.textContent = running ? 'Pause' : 'Run'; } });
+  Site.button(clockrow, { label: 'Step 1 cycle', onClick: function () { running = false; runBtn.textContent = 'Run'; clockOnce(); } });
+  Site.button(clockrow, { label: 'Reset all', onClick: function () { hardReset(); } });
+  const clk = Site.slider(document.getElementById('clockctl'), { label: 'clock', min: 0, max: 3.3, step: 0.01, value: Math.log10(freq), wide: true,
+    fmt: function (v) { const f = Math.pow(10, v); return f < 100 ? f.toFixed(0) + ' Hz' : (f / 1000).toFixed(2) + ' kHz'; },
+    onInput: function (v) { freq = Math.pow(10, v); } });
+
+  /* State chips */
+  const statesEl = document.getElementById('states');
+  const chips = {};
+  GROUPS.forEach(function (g) {
+    const row = document.createElement('div');
+    row.className = 'sgroup';
+    row.innerHTML = '<span class="gname">' + g[0] + '</span>';
+    g[1].forEach(function (s) {
+      const c = document.createElement('span');
+      c.className = 'chip';
+      c.textContent = s.replace(/^S_/, '');
+      row.appendChild(c);
+      chips[s] = c;
+    });
+    statesEl.appendChild(row);
+  });
+  let lastChip = null;
+  function updateChips() {
+    if (lastChip === r.state) return;
+    for (const s in chips) {
+      chips[s].classList.toggle('cur', s === r.state);
+      chips[s].classList.toggle('seen', !!seen[s] && s !== r.state);
+    }
+    lastChip = r.state;
+  }
+
+  /* Readouts */
+  const ro = Site.readouts(document.getElementById('ro'), [
+    { key: 'cyc', label: 'cycle', color: 'amber' }, { key: 'st', label: 'state', color: 'cyan' },
+    { key: 'mod', label: 'module', color: 'green' }, { key: 'addr', label: 'addr' },
+    { key: 'wd', label: 'wdata' }, { key: 'rd', label: 'rdata' }, { key: 'ijk', label: 'i j k' }
+  ]);
+
+  /* Device canvas: display.sv rendering */
+  const SEGR = '#eg', SEGC = '#adef', SEGO = '#abcdef', SEGU = '#bcdef', SEGA = '#abcefg', SEGD = '#bcdeg', SEGM = '#ceg', SEGT = '#defg', SEGL = '#def';
+  function digitsOf(v, width, showZero) {
+    const s = String(Math.max(0, Math.floor(v)) % Math.pow(10, width));
+    const out = [];
+    for (let i = 0; i < width - s.length; i++) out.push(' ');
+    for (const ch of s) out.push(ch);
+    if (!showZero && v === 0) out[out.length - 1] = '0';
+    return out;
+  }
+  function displayChars() {
+    const p = r.prompt_type;
+    if (p === 1) return [SEGR, SEGO, SEGU, ' ', ' ', ' ', ' ', ' '];
+    if (p === 2) return [SEGC, SEGO, SEGL, ' ', ' ', ' ', ' ', ' '];
+    if (p === 3) return [SEGA, SEGD, SEGD, ' ', ' ', ' ', ' ', ' '];
+    if (p === 4) return [SEGM, SEGU, SEGL, ' ', ' ', ' ', ' ', ' '];
+    if (p === 5) return [SEGT, SEGR, SEGA, ' ', ' ', ' ', ' ', ' '];
+    if (p === 6) return [SEGR, String(r.curr_r), SEGC, String(r.curr_c)].concat(digitsOf(r.display_data, 4, true));
+    return digitsOf(r.display_data, 8, true);
+  }
+  const dev = Site.canvas(document.getElementById('dev'), { aspect: 0.36 });
+  let seq = 0;
+  let seqT = 0;
+  function drawDevice(t) {
+    const c = dev.ctx, w = dev.w, h = dev.h;
+    c.fillStyle = '#161a3a';
+    c.fillRect(0, 0, w, h);
+    const chars = displayChars();
+    const dw = Math.min(w / 11.5, h * 0.38);
+    const dh = dw * 1.55;
+    const pitch = dw * 1.28;
+    const x0 = (w - 8 * pitch + (pitch - dw)) / 2;
+    const y0 = h * 0.14;
+    for (let i = 0; i < 8; i++) {
+      c.fillStyle = '#10143a';
+      c.fillRect(x0 + i * pitch - 4, y0 - 4, dw + 8, dh + 8);
+      Site.segDigit(c, x0 + i * pitch, y0, dw, dh, chars[i], { on: '#ff2020', off: 'rgba(255,255,255,0.05)' });
+    }
+    if (t - seqT > 0.1) { seq = (seq + 1) % 8; seqT = t; }
+    let left, right;
+    if (r.sys_state === 3) { left = 1 << seq; right = 0x80 >> seq; }
+    else { left = (1 << r.curr_r) - 1; right = (1 << r.curr_c) - 1; }
+    const ly = y0 + dh + h * 0.17;
+    const lr = Math.min(7, dw * 0.22);
+    const lp = lr * 2.7;
+    const lx0 = w / 2 - lp * 9.5;
+    for (let i = 0; i < 8; i++) Site.led(c, lx0 + i * lp, ly, lr, (left >> i) & 1);
+    for (let i = 0; i < 8; i++) Site.led(c, w / 2 + lp * 2 + i * lp, ly, lr, (right >> (7 - i)) & 1);
+    const blink1 = Math.floor(t * 2) % 2 === 0;
+    const blink4 = Math.floor(t * 8) % 2 === 0;
+    let rgb = null;
+    if (r.error_flag) rgb = blink1 ? '#ff3030' : null;
+    else if (r.ready_flag) rgb = blink4 ? '#30ff60' : null;
+    else if (r.sys_state !== 0) rgb = '#3b5bff';
+    Site.led(c, w / 2, ly, lr * 1.35, !!rgb, rgb || '#000');
+    c.fillStyle = '#7c83b8';
+    c.font = '10px ' + Site.mono();
+    c.textAlign = 'center';
+    c.fillText('row', lx0 + 3.5 * lp, ly + lr * 3.2);
+    c.fillText('col', w / 2 + lp * 2 + 3.5 * lp, ly + lr * 3.2);
+    c.fillText('status', w / 2, ly + lr * 3.2);
+  }
+
+  /* Memory canvas */
+  const memc = Site.canvas(document.getElementById('mem'), { height: 92 });
+  function drawMem() {
+    const c = memc.ctx, w = memc.w, h = memc.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const lx = 44;
+    const cw = (w - lx - 6) / 128;
+    const rows = [['M1', BASE_M1, C.cyan], ['M2', BASE_M2, C.amber], ['OUT', BASE_OUT, C.green]];
+    const rh = (h - 8) / 3;
+    c.font = '10px ' + Site.mono();
+    c.textBaseline = 'middle';
+    rows.forEach(function (row, ri) {
+      const y = 4 + ri * rh;
+      c.fillStyle = C.muted;
+      c.textAlign = 'left';
+      c.fillText(row[0], 4, y + rh / 2 - 6);
+      c.fillText('0x' + row[1].toString(16).padStart(3, '0'), 4, y + rh / 2 + 6);
+      for (let i = 0; i < 128; i++) {
+        const a = row[1] + i;
+        const x = lx + i * cw;
+        c.fillStyle = written[a] ? row[2] : '#141a24';
+        if (a === lastAddr && lastAddrAge < 8) c.fillStyle = '#ffffff';
+        c.fillRect(x, y + 2, Math.max(1, cw - 1), rh - 4);
+      }
+    });
+  }
+
+  /* Trace canvas */
+  const trc = Site.canvas(document.getElementById('trace'), { height: 150 });
+  const TRACE_ROWS = [['valid', 'valid', C.amber], ['ready', 'ready', C.cyan], ['res', 'result', C.green], ['ack', 'res ack', C.violet], ['wen', 'mem wen', C.pink], ['ren', 'mem ren', C.pink], ['mready', 'mem rdy', '#9aa3b2']];
+  function drawTrace() {
+    const c = trc.ctx, w = trc.w, h = trc.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const lx = 58;
+    const rh = h / TRACE_ROWS.length;
+    const cw = (w - lx - 4) / TR;
+    c.font = '10px ' + Site.mono();
+    c.textBaseline = 'middle';
+    c.textAlign = 'right';
+    TRACE_ROWS.forEach(function (row, ri) {
+      const y0 = ri * rh + 3;
+      const y1 = (ri + 1) * rh - 3;
+      c.fillStyle = C.muted;
+      c.fillText(row[1], lx - 6, (y0 + y1) / 2);
+      c.strokeStyle = row[2];
+      c.lineWidth = 1.5;
+      c.beginPath();
+      const off = TR - trace.length;
+      for (let i = 0; i < trace.length; i++) {
+        const v = trace[i][row[0]] ? y0 : y1;
+        const x = lx + (off + i) * cw;
+        if (i === 0) c.moveTo(x, v);
+        else { c.lineTo(x, v); }
+        c.lineTo(x + cw, v);
+      }
+      c.stroke();
+    });
+  }
+
+  const devLoop = Site.loop(dev.el, function (dt, t) {
+    if (running) {
+      acc += dt * freq;
+      let n = Math.min(4000, Math.floor(acc));
+      acc -= n;
+      while (n-- > 0) clockOnce();
+    } else if (burstLeft > 0) {
+      clockOnce();
+      burstLeft--;
+    }
+    drawDevice(t);
+    drawMem();
+    drawTrace();
+    updateChips();
+    ro.set('cyc', String(cycle));
+    ro.set('st', r.state.replace(/^S_/, ''));
+    const op = r.op_type;
+    ro.set('mod', op === 1 ? 'add ' + r.add.st : op === 2 ? 'mul ' + r.vec.st : op === 3 ? 'tra ' + r.tra.st : 'none');
+    ro.set('addr', '0x' + (r.mem.addr & 511).toString(16).padStart(3, '0'));
+    ro.set('wd', String(r.mem.wdata));
+    ro.set('rd', String(r.mem.rdata));
+    ro.set('ijk', r.calc_i + ' ' + r.calc_j + ' ' + r.calc_k);
+  });
+  devLoop.start();
+
+  /* Address widget */
+  const actl = document.getElementById('addrctl');
+  const aout = document.getElementById('addrout');
+  const aRows = Site.slider(actl, { label: 'rows', min: 1, max: 9, step: 1, value: 3, digits: 0, onInput: drawAddr });
+  const aCols = Site.slider(actl, { label: 'columns', min: 1, max: 9, step: 1, value: 4, digits: 0, onInput: drawAddr });
+  const aR = Site.slider(actl, { label: 'row r', min: 1, max: 9, step: 1, value: 2, digits: 0, onInput: drawAddr });
+  const aC = Site.slider(actl, { label: 'column c', min: 1, max: 9, step: 1, value: 3, digits: 0, onInput: drawAddr });
+  const aReg = Site.select(actl, { value: 0, options: [{ value: 0, label: 'M1' }, { value: 0x80, label: 'M2' }, { value: 0x100, label: 'OUT' }], onChange: drawAddr });
+  function drawAddr() {
+    const R = aRows.value, Cc = aCols.value;
+    let rr = Math.min(aR.value, R), cc = Math.min(aC.value, Cc);
+    if (rr !== aR.value) aR.value = rr;
+    if (cc !== aC.value) aC.value = cc;
+    const base = aReg.value;
+    const off = (rr - 1) * Cc + (cc - 1);
+    const addr = base + off;
+    let grid = '';
+    for (let i = 1; i <= R; i++) {
+      let line = '';
+      for (let j = 1; j <= Cc; j++) {
+        const a = base + (i - 1) * Cc + (j - 1);
+        const s = '0x' + a.toString(16).padStart(3, '0');
+        line += (i === rr && j === cc) ? '<span class="r">' + s + '</span> ' : '<span class="k">' + s + '</span> ';
+      }
+      grid += line + '\n';
+    }
+    aout.innerHTML =
+      '<span class="k">address = base + (r-1)·C + (c-1)</span>\n' +
+      '<span class="k">        = </span><span class="v">0x' + base.toString(16).padStart(3, '0') + '</span><span class="k"> + (</span><span class="v">' + rr + '</span><span class="k">-1)·</span><span class="v">' + Cc + '</span><span class="k"> + (</span><span class="v">' + cc + '</span><span class="k">-1)</span>\n' +
+      '<span class="k">        = </span><span class="r">0x' + addr.toString(16).padStart(3, '0') + '</span><span class="k">  (word ' + addr + ', ' + R * Cc + ' of 128 used)</span>\n\n' + grid;
+  }
+  drawAddr();
+
+  /* Shift and add widget */
+  const dimrow = document.getElementById('dimrow');
+  let dim = 7;
+  const dimSel = Site.select(dimrow, { value: 7, options: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(function (d) { return { value: d, label: String(d) }; }), onChange: function (v) { dim = v; drawShift(); } });
+  const sval = Site.slider(document.getElementById('shiftctl'), { label: 'value', min: 0, max: 99, step: 1, value: 13, digits: 0, wide: true, onInput: drawShift });
+  const FORMS = {
+    0: [], 1: [[0, 1]], 2: [[1, 1]], 3: [[1, 1], [0, 1]], 4: [[2, 1]], 5: [[2, 1], [0, 1]], 6: [[2, 1], [1, 1]], 7: [[3, 1], [0, -1]], 8: [[3, 1]], 9: [[3, 1], [0, 1]]
+  };
+  function bin(v) { return (v >>> 0).toString(2).padStart(11, '0'); }
+  function drawShift() {
+    const v = sval.value;
+    const terms = FORMS[dim];
+    let expr = terms.length === 0 ? '0' : terms.map(function (t, i) {
+      const s = t[0] === 0 ? 'val' : '(val << ' + t[0] + ')';
+      return (i === 0 ? '' : (t[1] > 0 ? ' + ' : ' - ')) + s;
+    }).join('');
+    let lines = '<span class="k">mult_by_dim(val, ' + dim + ') = </span><span class="s">' + expr + '</span>\n\n';
+    let total = 0;
+    terms.forEach(function (t) {
+      const term = (v << t[0]) * t[1];
+      total += term;
+      lines += '<span class="k">' + (t[1] > 0 ? '+ ' : '- ') + '</span><span class="v">' + bin(v << t[0]) + '</span><span class="k">  val << ' + t[0] + ' = ' + (v << t[0]) + '</span>\n';
+    });
+    lines += '<span class="k">  ───────────</span>\n';
+    lines += '<span class="k">= </span><span class="r">' + bin(total) + '</span><span class="k">  = ' + total + '</span>\n\n';
+    lines += '<span class="k">check: ' + v + ' × ' + dim + ' = ' + (v * dim) + '</span>';
+    document.getElementById('shiftout').innerHTML = lines;
+  }
+  drawShift();
+  void dimSel;
+
+  /* SPI */
+  const spi = Site.canvas(document.getElementById('spi'), { aspect: 0.42 });
+  let mode = 0;
+  const spictl = document.getElementById('spictl');
+  Site.select(document.getElementById('spimode'), { value: 0, options: [{ value: 0, label: 'Mode 0' }, { value: 1, label: 'Mode 1' }, { value: 2, label: 'Mode 2' }, { value: 3, label: 'Mode 3' }], onChange: function (v) { mode = v; drawSpi(); } });
+  const mosi = Site.slider(spictl, { label: 'MOSI byte', min: 0, max: 255, step: 1, value: 0xA5, fmt: function (v) { return '0x' + v.toString(16).toUpperCase().padStart(2, '0'); }, onInput: drawSpi });
+  const miso = Site.slider(spictl, { label: 'MISO byte', min: 0, max: 255, step: 1, value: 0x3C, fmt: function (v) { return '0x' + v.toString(16).toUpperCase().padStart(2, '0'); }, onInput: drawSpi });
+  function drawSpi() {
+    const c = spi.ctx, w = spi.w, h = spi.h;
+    const CPOL = mode >> 1, CPHA = mode & 1;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const lx = 52;
+    const x0 = lx + 10;
+    const x1 = w - 10;
+    const bitW = (x1 - x0) / 10;
+    const rows = ['CS', 'SCLK', 'MOSI', 'MISO'];
+    const rh = (h - 26) / 4;
+    c.font = '11px ' + Site.mono();
+    c.textBaseline = 'middle';
+    function level(row, hi) { const y0 = 8 + row * rh + 6; const y1 = 8 + (row + 1) * rh - 8; return hi ? y0 : y1; }
+    rows.forEach(function (n, i) { c.fillStyle = C.muted; c.textAlign = 'right'; c.fillText(n, lx - 4, 8 + i * rh + rh / 2); });
+    c.lineWidth = 2;
+    c.strokeStyle = C.pink;
+    c.beginPath();
+    c.moveTo(x0, level(0, 1)); c.lineTo(x0 + bitW * 0.5, level(0, 1)); c.lineTo(x0 + bitW * 0.5, level(0, 0));
+    c.lineTo(x0 + bitW * 9.5, level(0, 0)); c.lineTo(x0 + bitW * 9.5, level(0, 1)); c.lineTo(x1, level(0, 1));
+    c.stroke();
+    const idle = CPOL;
+    c.strokeStyle = C.amber;
+    c.beginPath();
+    c.moveTo(x0, level(1, idle));
+    c.lineTo(x0 + bitW, level(1, idle));
+    for (let b = 0; b < 8; b++) {
+      const xs = x0 + bitW * (1 + b);
+      c.lineTo(xs, level(1, 1 - idle));
+      c.lineTo(xs + bitW / 2, level(1, 1 - idle));
+      c.lineTo(xs + bitW / 2, level(1, idle));
+      c.lineTo(xs + bitW, level(1, idle));
+    }
+    c.lineTo(x1, level(1, idle));
+    c.stroke();
+    const sampleAtFirstEdge = CPHA === 0;
+    function drawData(row, byte, color) {
+      c.strokeStyle = color;
+      c.beginPath();
+      let prev = 0;
+      c.moveTo(x0, level(row, 0));
+      for (let b = 0; b < 8; b++) {
+        const bit = (byte >> (7 - b)) & 1;
+        const xs = x0 + bitW * (1 + b) + (sampleAtFirstEdge ? -bitW / 2 : 0);
+        const xe = xs + bitW;
+        c.lineTo(xs, level(row, prev));
+        c.lineTo(xs, level(row, bit));
+        c.lineTo(xe, level(row, bit));
+        prev = bit;
+      }
+      c.lineTo(x1, level(row, prev));
+      c.stroke();
+      c.fillStyle = color;
+      c.textAlign = 'center';
+      for (let b = 0; b < 8; b++) {
+        const bit = (byte >> (7 - b)) & 1;
+        const xsamp = x0 + bitW * (1 + b) + bitW / 2 * (sampleAtFirstEdge ? 0 : 1);
+        c.fillStyle = C.white;
+        c.beginPath();
+        c.arc(xsamp, level(row, bit), 3.5, 0, Math.PI * 2);
+        c.fill();
+        c.fillStyle = color;
+        c.fillText(String(bit), xsamp, level(row, 1) - 10);
+      }
+    }
+    drawData(2, mosi.value, C.cyan);
+    drawData(3, miso.value, C.green);
+    c.strokeStyle = 'rgba(255,255,255,0.12)';
+    c.setLineDash([2, 4]);
+    c.lineWidth = 1;
+    for (let b = 0; b < 8; b++) {
+      const xsamp = x0 + bitW * (1 + b) + bitW / 2 * (sampleAtFirstEdge ? 0 : 1);
+      c.beginPath(); c.moveTo(xsamp, 8); c.lineTo(xsamp, h - 18); c.stroke();
+    }
+    c.setLineDash([]);
+    c.fillStyle = C.muted;
+    c.textAlign = 'left';
+    c.fillText('CPOL=' + CPOL + '  CPHA=' + CPHA + '   dots mark the sampling edge, MSB first', x0, h - 8);
+    document.getElementById('spinote').textContent =
+      'Mode ' + mode + ': the clock idles ' + (CPOL ? 'high' : 'low') + ' and data is sampled on the ' + (CPHA ? 'second' : 'first') + ' edge of each pulse, the ' +
+      ((CPOL ^ CPHA) ? 'falling' : 'rising') + ' edge. The controller shifts the next bit out on the opposite edge so it is stable when the peripheral samples.';
+  }
+  drawSpi();
+  spi.onresize = drawSpi;
+
+  window.__socet = {
+    get r() { return r; },
+    get cycle() { return cycle; },
+    ram: ram,
+    press: pressKey,
+    clock: function (n) { for (let i = 0; i < (n || 1); i++) clockOnce(); },
+    setRunning: function (v) { running = v; runBtn.textContent = v ? 'Pause' : 'Run'; }
+  };
+})();
+</script>
+</body>
+</html>

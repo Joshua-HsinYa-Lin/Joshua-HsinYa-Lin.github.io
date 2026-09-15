@@ -4,8 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>A boost converter and an equalizer — Hsin Ya Lin</title>
+<meta name="description" content="Drag the duty cycle of a boost converter and watch the inductor pump. Move three faders on an analog equalizer and hear the bands. Both measured against LTspice.">
 <link rel="stylesheet" href="../../shared/site.css">
 <script src="../../shared/site.js"></script>
+<style>
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+@media (max-width: 720px) { .two { grid-template-columns: 1fr; } }
+.faders { display: flex; gap: 1.2rem; justify-content: center; align-items: flex-end; margin: 0.6rem 0 0.2rem; }
+.fader { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; font-family: var(--mono); font-size: 0.8rem; color: var(--panel-ink); }
+.fader input[type="range"] { writing-mode: vertical-lr; direction: rtl; height: 150px; width: 28px; accent-color: var(--amber); }
+.fader output { color: var(--amber); }
+.fader .name { color: var(--panel-muted); }
+</style>
 </head>
 <body>
 <header class="site-header" data-root="../../"></header>
@@ -13,26 +23,557 @@
 <div class="kicker">Purdue ECE 20007 · Power Electronics Design Projects</div>
 <h1>A boost converter and an equalizer, measured against their simulations</h1>
 <div class="when">Jan 2026 to May 2026 · West Lafayette, Indiana</div>
-<p class="lede">Two breadboard circuits, each designed on paper, simulated in LTspice, built, and measured. The interesting part is not that they worked; it is where the bench disagreed with the simulation and why.</p>
-<p class="note">The interactive version of this page is being built. What is here now is the summary and the schematics.</p>
+<p class="lede">Two breadboard circuits, each designed on paper, simulated in LTspice, built, and measured on the bench. The part worth showing is not that they worked. It is what the bench disagreed with, and why.</p>
+<div class="tags"><span>DC-DC</span><span>555 timer</span><span>MOSFET</span><span>LTspice</span><span>active filters</span><span>op-amps</span><span>oscilloscope</span></div>
 
-<section class="sub">
-<h2>What I did</h2>
-<ul>
-<li>Designed, built and measured an adjustable DC-DC boost converter stepping a 5V input to a 5V to 30V range, sizing the switching duty cycle from the boost transfer function rather than tuning it empirically. A PMOS output ceiling limiter holds the rail under no load or a shorted load, a failure mode that otherwise destroys the output capacitors.</li>
-<li>Reconciled measured output against LTspice by accounting for wire and breadboard resistance, component tolerance, and device on-resistance.</li>
-<li>Designed a three-band analog audio equalizer with active RC filters, LM324 op-amp buffers placed to remove loading between the filter and volume stages, per-band inverting amplifiers for gain, and a power amplifier stage driving over 400 mW into 8 ohms.</li>
-</ul>
+<section class="sub" id="boost">
+<h2>Drag the duty cycle</h2>
+<p>A boost converter steps a voltage up with an inductor and a switch. While the switch is closed the inductor charges from the 5 V input; when it opens, the inductor's current has nowhere to go except through the diode into the output capacitor, and it adds its own voltage on top of the input. The fraction of each cycle the switch spends closed is the duty cycle <em>D</em>, and in the ideal case <span class="mono">V<sub>out</sub> = V<sub>in</sub> / (1 &minus; D)</span>. That formula is how the design was sized: a 15 V target from 5 V needs <em>D</em> = 66.7%.</p>
+<div class="panel">
+  <canvas id="scope" aria-label="Switching waveforms"></canvas>
+  <div class="controls" id="bctl"></div>
+  <div class="btnrow" id="brow"></div>
+  <div id="bro"></div>
+  <p class="hint">Top: the 555 output driving the NMOS gate. Middle: inductor current. Bottom: output voltage, last six switching periods. The right hand plot is the same output over a longer window.</p>
+</div>
+<p>Three things to try. Push the duty cycle toward 90% and watch the output run past the 30 V design ceiling, then turn the limiter on: a PMOS watches the output through a divider and, when the ceiling is reached, pulls the 555's reset pin low and stops the switching until the output falls back. Set the load to open circuit with the limiter off and watch what a boost converter does with nowhere to send its energy, which is the failure the limiter was sized to prevent. Then add series resistance and watch the simulated output drop below the ideal curve, which is the story of the next section.</p>
 </section>
 
-<section class="sub">
-<h2>Schematics</h2>
-<div class="figs">
-<figure><img src="boost-schematic.png" alt="Boost converter schematic" loading="lazy"><figcaption>Boost converter: 555 astable PWM into an NMOS switch, with a PMOS ceiling limiter on the timer reset.</figcaption></figure>
-<figure><img src="eq-schematic.png" alt="Three-band audio equalizer schematic" loading="lazy"><figcaption>Three band equalizer: passive RC bands, LM324 buffers, per band inverting volume stages, summing stage, and LM386 power amplifier.</figcaption></figure>
+<section class="sub" id="error">
+<h2>Where the 9.5% went</h2>
+<p>The bench read below the simulation in every case, and the gap grew with output voltage. The report accounts for it rather than reporting it: breadboard and supply wire resistance, resistor, capacitor and inductor tolerance, and the on resistance of the diode and the MOSFET. Every one of those losses scales with current, and current scales with output voltage, so the error should grow with the output. It did.</p>
+<table class="tbl">
+<tr><th>Control method</th><th>Expected</th><th>LTspice</th><th>Measured</th><th>Error</th></tr>
+<tr><td>PMOS ceiling at 15 V</td><td class="num">15.0 V</td><td class="num">15.0 V</td><td class="num">13.57 V</td><td class="num">9.5%</td></tr>
+<tr><td>Duty cycle, 11 V target</td><td class="num">11.0 V</td><td class="num">11.0 V</td><td class="num">10.75 V</td><td class="num">2.3%</td></tr>
+<tr><td>Duty cycle, 5 V target</td><td class="num">5.0 V</td><td class="num">5.0 V</td><td class="num">4.83 V</td><td class="num">3.4%</td></tr>
+</table>
+<div class="panel">
+  <canvas id="curve" aria-label="Output voltage against duty cycle"></canvas>
+  <div class="controls" id="cctl"></div>
+  <p class="hint">Ideal curve, and the same converter with series resistance in the inductor path. Dots are the bench measurements from the report.</p>
+</div>
+<p>With a series resistance <em>r</em> in the current path and a load <em>R</em>, the output becomes <span class="mono">V<sub>in</sub> / (1 &minus; D) &middot; 1 / (1 + r / ((1 &minus; D)<sup>2</sup> R))</span>. The correction term grows as <em>D</em> approaches one, because the inductor current, and so the loss, grows as 1/(1 &minus; D). That is the shape of the measured gap. The exact resistance of that breadboard was never measured, so the slider is a model and the dots are the data.</p>
+<figure><img src="scope-15v.png" alt="Oscilloscope capture of the boost converter output starting up to about 13.6 V" loading="lazy"><figcaption>Bench capture of the output at startup under ceiling control. The thick band is switching ripple at one second per division.</figcaption></figure>
+</section>
+
+<section class="sub" id="timer">
+<h2>The 555 sets the duty cycle</h2>
+<p>There is no microcontroller here. A 555 timer in astable mode charges a capacitor through two resistors and discharges it through one, so the high time is longer than the low time and the duty cycle is <span class="mono">D = (R<sub>a</sub> + R<sub>b</sub>) / (R<sub>a</sub> + 2R<sub>b</sub>)</span>, always above 50%. That is a convenient accident for a boost converter, whose useful range is exactly there. One potentiometer in the timing network is the whole open loop control.</p>
+<div class="panel">
+  <div class="two">
+    <div>
+      <div class="controls" id="tctl" style="margin-top:0"></div>
+      <div id="tro"></div>
+    </div>
+    <canvas id="tcan" aria-label="555 output waveform"></canvas>
+  </div>
 </div>
 </section>
+
+<section class="sub" id="eq">
+<h2>Hear the equalizer</h2>
+<p>The second project splits an audio signal into three bands, gives each its own volume, and recombines them into a speaker amplifier. The bands are passive RC filters: a low pass at 320 Hz, a high pass at 3.2 kHz, and a mid band made by cascading a high pass and a low pass. Move the faders and listen. The curve is the response of the actual filter values; the audio runs through the same filters.</p>
+<div class="panel">
+  <canvas id="eqcan" aria-label="Equalizer frequency response"></canvas>
+  <div class="faders" id="faders"></div>
+  <div class="btnrow" id="eqrow"></div>
+  <p class="hint" id="eqhint">Press play to start audio. Sources are synthesized in the browser.</p>
+</div>
+<p>The analog lesson in this circuit is loading. A passive RC filter only has the response you designed if nothing draws current from its output. Feed it straight into the next stage's input resistor and the corner frequency moves and the level drops, because that resistor is now part of the filter. The fix is a unity gain buffer between the filter and the volume stage, which is why the schematic has LM324 op-amps doing nothing but copying a voltage. Toggle the buffers off in the plot to see what the bands would look like without them.</p>
+</section>
+
+<section class="sub" id="schem">
+<h2>The two designs</h2>
+<div class="figs">
+<figure><img src="boost-schematic.png" alt="Boost converter schematic" loading="lazy"><figcaption>Boost converter as simulated: NE555 astable driving an RFD3055 NMOS, 1 mH inductor, 1N5819 Schottky diode, 100 &micro;F output capacitor, and the FQU17P06 PMOS ceiling limiter feeding the timer's reset pin.</figcaption></figure>
+<figure><img src="eq-schematic.png" alt="Three band equalizer schematic" loading="lazy"><figcaption>Equalizer: three passive RC bands, LM324 buffers, per band inverting volume stages, a summing stage, and an LM386 power amplifier driving over 400 mW into 8 &Omega;.</figcaption></figure>
+</div>
+<p>Neither is a finished product. The converter is open loop with a hardware clamp, not a regulator; there is no compensation, no current mode control, and no efficiency measurement. The equalizer has no distortion measurement. What both have is a design derived from the equations, a simulation, a build, and a measurement reconciled against the simulation from first principles.</p>
+</section>
+
+<div class="next"><a href="../../#projects">All projects</a><a href="../lunabotics/">Next: the board that disconnects the battery</a></div>
 </main>
 <footer class="site-footer"></footer>
+
+<script>
+(function () {
+  const C = Site.colors;
+
+  /* Boost converter, switched model, explicit Euler at 120 steps per period. */
+  const B = { Vin: 5, L: 1e-3, Cap: 100e-6, Vd: 0.3, D: 0.5, f: 5000, R: 1000, open: false, r: 0.5, limiter: false, Vceil: 30 };
+  const S = { iL: 0, v: 0, t: 0, clamp: false, sw: 0, periods: 0 };
+  const NS = 120;
+  const SCOPE_P = 6;
+  const scopeBuf = { sw: [], iL: [], v: [] };
+  const SLOW_N = 400;
+  const slow = [];
+  let slowCount = 0;
+  let vMean = 0;
+  let vRip = 0;
+  let iPeak = 0;
+
+  function stepPeriod() {
+    const T = 1 / B.f;
+    const dt = T / NS;
+    const R = B.open ? 1e12 : B.R;
+    let vmin = 1e9, vmax = -1e9, imax = 0, vsum = 0;
+    for (let k = 0; k < NS; k++) {
+      const phase = k / NS;
+      let sw = phase < B.D ? 1 : 0;
+      if (B.limiter) {
+        if (S.v >= B.Vceil) S.clamp = true;
+        else if (S.v < B.Vceil * 0.985) S.clamp = false;
+        if (S.clamp) sw = 0;
+      } else S.clamp = false;
+      S.sw = sw;
+      const cond = !sw && (S.iL > 0 || B.Vin - B.r * S.iL > S.v + B.Vd);
+      let vL;
+      if (sw) vL = B.Vin - S.iL * B.r;
+      else if (cond) vL = B.Vin - S.iL * B.r - S.v - B.Vd;
+      else vL = 0;
+      S.iL += vL / B.L * dt;
+      if (!sw && S.iL < 0) S.iL = 0;
+      if (S.iL > 60) S.iL = 60;
+      const iC = (sw || !cond ? 0 : S.iL) - S.v / R;
+      S.v += iC / B.Cap * dt;
+      if (S.v < 0) S.v = 0;
+      if (S.v > 120) S.v = 120;
+      S.t += dt;
+      scopeBuf.sw.push(sw);
+      scopeBuf.iL.push(S.iL);
+      scopeBuf.v.push(S.v);
+      if (S.v < vmin) vmin = S.v;
+      if (S.v > vmax) vmax = S.v;
+      if (S.iL > imax) imax = S.iL;
+      vsum += S.v;
+    }
+    const keep = NS * SCOPE_P;
+    if (scopeBuf.sw.length > keep) {
+      scopeBuf.sw.splice(0, scopeBuf.sw.length - keep);
+      scopeBuf.iL.splice(0, scopeBuf.iL.length - keep);
+      scopeBuf.v.splice(0, scopeBuf.v.length - keep);
+    }
+    vMean = vsum / NS;
+    vRip = vmax - vmin;
+    iPeak = imax;
+    S.periods++;
+    if (S.periods % 5 === 0) {
+      slow.push(vMean);
+      if (slow.length > SLOW_N) slow.shift();
+      slowCount++;
+    }
+  }
+  function resetSim() {
+    S.iL = 0; S.v = 0; S.t = 0; S.clamp = false; S.periods = 0;
+    scopeBuf.sw.length = 0; scopeBuf.iL.length = 0; scopeBuf.v.length = 0;
+    slow.length = 0;
+  }
+
+  const bctl = document.getElementById('bctl');
+  const sD = Site.slider(bctl, { label: 'duty cycle', min: 0.05, max: 0.92, step: 0.005, value: 0.5, fmt: function (v) { return (v * 100).toFixed(1) + ' %'; }, onInput: function (v) { B.D = v; } });
+  const sR = Site.slider(bctl, { label: 'load', min: 1.7, max: 4, step: 0.01, value: 3, fmt: function (v) { const R = Math.pow(10, v); return R >= 1000 ? (R / 1000).toFixed(2) + ' kΩ' : R.toFixed(0) + ' Ω'; }, onInput: function (v) { B.R = Math.pow(10, v); B.open = false; openT.value = false; } });
+  const sF = Site.slider(bctl, { label: 'switching', min: 1000, max: 20000, step: 100, value: 5000, fmt: function (v) { return (v / 1000).toFixed(1) + ' kHz'; }, onInput: function (v) { B.f = v; } });
+  const sr = Site.slider(bctl, { label: 'series R', min: 0, max: 8, step: 0.05, value: 0.5, fmt: function (v) { return v.toFixed(2) + ' Ω'; }, onInput: function (v) { B.r = v; } });
+  const sCeil = Site.slider(bctl, { label: 'ceiling', min: 8, max: 34, step: 0.5, value: 30, fmt: function (v) { return v.toFixed(1) + ' V'; }, onInput: function (v) { B.Vceil = v; } });
+  const brow = document.getElementById('brow');
+  const limT = Site.toggle(brow, { label: 'PMOS ceiling limiter', value: false, onChange: function (v) { B.limiter = v; } });
+  const openT = Site.toggle(brow, { label: 'Open circuit load', value: false, onChange: function (v) { B.open = v; } });
+  Site.button(brow, { label: 'Restart from zero', onClick: resetSim });
+  Site.button(brow, { label: 'Preset: 15 V sizing', onClick: function () { sD.value = 0.667; B.D = 0.667; sr.value = 0; B.r = 0; sR.value = 3; B.R = 1000; openT.value = false; B.open = false; } });
+  const bro = Site.readouts(document.getElementById('bro'), [
+    { key: 'ideal', label: 'Vin/(1−D)', color: 'amber' }, { key: 'sim', label: 'simulated Vout', color: 'green' },
+    { key: 'rip', label: 'ripple' }, { key: 'ip', label: 'peak iL', color: 'cyan' }, { key: 'clamp', label: 'limiter', color: 'red' }
+  ]);
+  void limT;
+
+  const scope = Site.canvas(document.getElementById('scope'), { aspect: 0.8 });
+  let plots = null;
+  function layoutScope() {
+    const w = scope.w, h = scope.h;
+    const leftW = Math.min(w * 0.6, w - 220);
+    const lx = 46, gap = 30, top = 24, rx = lx + leftW + 70;
+    const ph = (h - top - 40 - 2 * gap) / 3;
+    plots = {
+      pwm: new Site.Plot(scope.ctx, { x: [0, SCOPE_P], y: [-0.5, 5.5], box: { x: lx, y: top, w: leftW, h: ph * 0.6 }, yticks: [0, 5], xticks: [], title: '555 OUT' }),
+      il: new Site.Plot(scope.ctx, { x: [0, SCOPE_P], y: [0, 1], box: { x: lx, y: top + ph * 0.6 + gap, w: leftW, h: ph * 1.1 }, xticks: [], title: 'inductor current, A' }),
+      vo: new Site.Plot(scope.ctx, { x: [0, SCOPE_P], y: [0, 40], box: { x: lx, y: top + ph * 1.7 + 2 * gap, w: leftW, h: ph * 1.3 }, title: 'output, V', xlabel: 'switching periods' }),
+      slow: new Site.Plot(scope.ctx, { x: [0, SLOW_N], y: [0, 40], box: { x: rx, y: top, w: w - rx - 8, h: h - top - 40 }, title: 'output over 2000 periods', xticks: [], xlabel: 'time' })
+    };
+  }
+  layoutScope();
+  scope.onresize = layoutScope;
+  function drawScope() {
+    const c = scope.ctx;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, scope.w, scope.h);
+    const n = scopeBuf.v.length;
+    const xs = new Array(n);
+    for (let i = 0; i < n; i++) xs[i] = (i + (NS * SCOPE_P - n)) / NS;
+    const sw5 = scopeBuf.sw.map(function (s) { return s * 5; });
+    let imax = 0.1;
+    for (let i = 0; i < n; i++) if (scopeBuf.iL[i] > imax) imax = scopeBuf.iL[i];
+    plots.il.set({ y: [0, imax * 1.15] });
+    let vtop = 40;
+    for (let i = 0; i < n; i++) if (scopeBuf.v[i] > vtop * 0.9) vtop = Math.max(vtop, scopeBuf.v[i] * 1.15);
+    plots.vo.set({ y: [0, vtop] });
+    plots.slow.set({ y: [0, vtop] });
+    plots.pwm.axes();
+    plots.il.axes();
+    plots.vo.axes();
+    plots.slow.axes();
+    if (n > 1) {
+      plots.pwm.line({ xs: xs, ys: sw5 }, { color: C.cyan, width: 1.5 });
+      plots.il.line({ xs: xs, ys: scopeBuf.iL }, { color: C.amber, width: 2 });
+      plots.vo.line({ xs: xs, ys: scopeBuf.v }, { color: C.green, width: 2 });
+    }
+    const zone = function (p) {
+      const b = p.box;
+      const y30 = p.py(30);
+      if (y30 > b.y) {
+        c.save();
+        c.fillStyle = 'rgba(255,107,107,0.10)';
+        c.fillRect(b.x, b.y, b.w, y30 - b.y);
+        c.restore();
+      }
+      p.hline(30, { color: C.red, label: '30 V design ceiling' });
+      if (B.limiter) p.hline(B.Vceil, { color: C.pink, dash: [2, 3], label: 'limiter ' + B.Vceil.toFixed(1) + ' V', align: 'left' });
+      p.hline(B.Vin / (1 - B.D), { color: C.amber, dash: [1, 3], label: 'ideal', align: 'left' });
+    };
+    zone(plots.vo);
+    zone(plots.slow);
+    if (slow.length > 1) {
+      const sx = [];
+      for (let i = 0; i < slow.length; i++) sx.push(i + (SLOW_N - slow.length));
+      plots.slow.line({ xs: sx, ys: slow }, { color: C.green, width: 1.5 });
+    }
+  }
+  const loop = Site.loop(scope.el, function () {
+    for (let k = 0; k < 20; k++) stepPeriod();
+    drawScope();
+    bro.set('ideal', (B.Vin / (1 - B.D)).toFixed(2) + ' V');
+    bro.set('sim', vMean.toFixed(2) + ' V');
+    bro.set('rip', (vRip * 1000).toFixed(0) + ' mV');
+    bro.set('ip', iPeak.toFixed(2) + ' A');
+    bro.set('clamp', B.limiter ? (S.clamp ? 'holding' : 'armed') : 'off');
+  });
+  loop.start();
+
+  /* Transfer curve */
+  const curve = Site.canvas(document.getElementById('curve'), { aspect: 0.5 });
+  const cctl = document.getElementById('cctl');
+  const cr = Site.slider(cctl, { label: 'series R', min: 0, max: 8, step: 0.05, value: 3, fmt: function (v) { return v.toFixed(2) + ' Ω'; }, onInput: drawCurve });
+  const cR = Site.slider(cctl, { label: 'load', min: 1.7, max: 4, step: 0.01, value: Math.log10(1800), fmt: function (v) { const R = Math.pow(10, v); return R >= 1000 ? (R / 1000).toFixed(2) + ' kΩ' : R.toFixed(0) + ' Ω'; }, onInput: drawCurve });
+  function drawCurve() {
+    const c = curve.ctx, w = curve.w, h = curve.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const p = new Site.Plot(c, { x: [0, 0.9], y: [0, 40], box: { x: 46, y: 14, w: w - 60, h: h - 50 }, xlabel: 'duty cycle', ylabel: 'Vout, V', xfmt: function (v) { return (v * 100).toFixed(0) + '%'; } });
+    p.axes();
+    const ideal = [], real = [];
+    const r = cr.value, R = Math.pow(10, cR.value);
+    for (let D = 0; D <= 0.9; D += 0.005) {
+      const vi = B.Vin / (1 - D);
+      ideal.push([D, vi]);
+      real.push([D, vi / (1 + r / ((1 - D) * (1 - D) * R))]);
+    }
+    p.hline(30, { color: C.red, label: '30 V ceiling' });
+    p.line(ideal, { color: C.amber, width: 2 });
+    p.line(real, { color: C.green, width: 2 });
+    const pts = [[0.545, 10.75, '11 V target: 10.75 measured'], [0, 4.83, '5 V: 4.83 measured'], [0.667, 13.57, '15 V ceiling mode: 13.57 measured']];
+    pts.forEach(function (q, i) {
+      p.dot(q[0], q[1], { color: C.white, r: 4, ring: true });
+      p.text(q[0], q[1], q[2], { color: C.ink, dx: 10, dy: i === 1 ? -10 : 8, size: 11 });
+    });
+    p.legend([{ label: 'ideal Vin/(1−D)', color: C.amber }, { label: 'with series resistance r = ' + r.toFixed(2) + ' Ω into ' + (R >= 1000 ? (R / 1000).toFixed(2) + ' kΩ' : R.toFixed(0) + ' Ω'), color: C.green }]);
+  }
+  drawCurve();
+  curve.onresize = drawCurve;
+
+  /* 555 astable */
+  const tctl = document.getElementById('tctl');
+  const tRa = Site.slider(tctl, { label: 'Ra', min: 3, max: 5, step: 0.01, value: Math.log10(5000), fmt: function (v) { const R = Math.pow(10, v); return R >= 1000 ? (R / 1000).toFixed(1) + ' kΩ' : R.toFixed(0) + ' Ω'; }, onInput: drawTimer });
+  const tRb = Site.slider(tctl, { label: 'Rb', min: 3, max: 5, step: 0.01, value: Math.log10(5000), fmt: function (v) { const R = Math.pow(10, v); return R >= 1000 ? (R / 1000).toFixed(1) + ' kΩ' : R.toFixed(0) + ' Ω'; }, onInput: drawTimer });
+  const tC = Site.slider(tctl, { label: 'C', min: -9, max: -7, step: 0.01, value: Math.log10(22e-9), fmt: function (v) { return (Math.pow(10, v) * 1e9).toFixed(0) + ' nF'; }, onInput: drawTimer });
+  const tro = Site.readouts(document.getElementById('tro'), [{ key: 'd', label: 'D', color: 'amber' }, { key: 'f', label: 'f', color: 'cyan' }, { key: 'v', label: 'Vin/(1−D)', color: 'green' }]);
+  const tcan = Site.canvas(document.getElementById('tcan'), { height: 180 });
+  function drawTimer() {
+    const Ra = Math.pow(10, tRa.value), Rb = Math.pow(10, tRb.value), Cc = Math.pow(10, tC.value);
+    const D = (Ra + Rb) / (Ra + 2 * Rb);
+    const f = 1.44 / ((Ra + 2 * Rb) * Cc);
+    tro.set('d', (D * 100).toFixed(1) + ' %');
+    tro.set('f', f >= 1000 ? (f / 1000).toFixed(2) + ' kHz' : f.toFixed(0) + ' Hz');
+    tro.set('v', (5 / (1 - D)).toFixed(1) + ' V');
+    const c = tcan.ctx, w = tcan.w, h = tcan.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const p = new Site.Plot(c, { x: [0, 3], y: [-0.5, 5.5], box: { x: 36, y: 12, w: w - 48, h: h - 46 }, yticks: [0, 5], xlabel: 'periods', title: '555 OUT: high through Ra + Rb, low through Rb' });
+    p.axes();
+    const pts = [];
+    for (let k = 0; k < 3; k++) { pts.push([k, 5]); pts.push([k + D, 5]); pts.push([k + D, 0]); pts.push([k + 1, 0]); }
+    p.line(pts, { color: C.cyan, width: 2 });
+  }
+  drawTimer();
+  tcan.onresize = drawTimer;
+
+  /* Equalizer */
+  const R_F = 4700 + 270;
+  const C_LO = 0.1e-6;
+  const C_HI = 10e-9;
+  const R_IN = 22000 + 10000;
+  const fLo = 1 / (2 * Math.PI * R_F * C_LO);
+  const fHi = 1 / (2 * Math.PI * R_F * C_HI);
+  const Rpar = R_F * R_IN / (R_F + R_IN);
+  const gains = { lo: 0.8, mid: 0.8, hi: 0.8 };
+  let buffered = true;
+  function cmul(a, b) { return [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]]; }
+  function cdiv(a, b) { const d = b[0] * b[0] + b[1] * b[1]; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; }
+  function lp(f, fc, k) { return cdiv([k || 1, 0], [1, f / fc]); }
+  function hp(f, fc) { return cdiv([0, f / fc], [1, f / fc]); }
+  function response(f) {
+    let L, M, H;
+    if (buffered) {
+      L = lp(f, fLo);
+      M = cmul(hp(f, fLo), lp(f, fHi));
+      H = hp(f, fHi);
+    } else {
+      const fLoL = 1 / (2 * Math.PI * Rpar * C_LO);
+      const fHiL = 1 / (2 * Math.PI * Rpar * C_HI);
+      const k = R_IN / (R_F + R_IN);
+      L = lp(f, fLoL, k);
+      M = cmul(hp(f, fLoL), lp(f, fHiL, k));
+      H = hp(f, fHiL);
+    }
+    const t = [gains.lo * L[0] + gains.mid * M[0] + gains.hi * H[0], gains.lo * L[1] + gains.mid * M[1] + gains.hi * H[1]];
+    return { L: L, M: M, H: H, T: t };
+  }
+  function mag(z) { return Math.sqrt(z[0] * z[0] + z[1] * z[1]); }
+  function dB(z) { return 20 * Math.log10(Math.max(1e-6, mag(z))); }
+
+  const eqcan = Site.canvas(document.getElementById('eqcan'), { aspect: 0.48 });
+  let analyser = null;
+  let specBuf = null;
+  function drawEq() {
+    const c = eqcan.ctx, w = eqcan.w, h = eqcan.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const p = new Site.Plot(c, { x: [20, 20000], y: [-40, 6], xlog: true, box: { x: 46, y: 14, w: w - 60, h: h - 50 }, xlabel: 'frequency, Hz', ylabel: 'dB', xfmt: function (v) { return v >= 1000 ? (v / 1000) + 'k' : String(v); } });
+    p.axes();
+    if (analyser && specBuf) {
+      analyser.getByteFrequencyData(specBuf);
+      const sr = analyser.context.sampleRate;
+      const pts = [];
+      for (let i = 1; i < specBuf.length; i++) {
+        const f = i * sr / 2 / specBuf.length;
+        if (f < 20 || f > 20000) continue;
+        pts.push([f, -40 + specBuf[i] / 255 * 46]);
+      }
+      if (pts.length > 2) p.line(pts, { color: 'rgba(255,255,255,0.35)', width: 1, fill: false });
+    }
+    const lo = [], mi = [], hi = [], tot = [];
+    for (let i = 0; i <= 200; i++) {
+      const f = 20 * Math.pow(1000, i / 200);
+      const r = response(f);
+      lo.push([f, dB([r.L[0] * gains.lo, r.L[1] * gains.lo])]);
+      mi.push([f, dB([r.M[0] * gains.mid, r.M[1] * gains.mid])]);
+      hi.push([f, dB([r.H[0] * gains.hi, r.H[1] * gains.hi])]);
+      tot.push([f, dB(r.T)]);
+    }
+    p.line(lo, { color: C.cyan, width: 1.2, dash: [3, 3] });
+    p.line(mi, { color: C.green, width: 1.2, dash: [3, 3] });
+    p.line(hi, { color: C.pink, width: 1.2, dash: [3, 3] });
+    p.line(tot, { color: C.amber, width: 2.5 });
+    p.vline(fLo, { color: C.muted, label: fLo.toFixed(0) + ' Hz' });
+    p.vline(fHi, { color: C.muted, label: (fHi / 1000).toFixed(2) + ' kHz', dy: 14 });
+    p.legend([{ label: 'combined', color: C.amber }, { label: 'low band', color: C.cyan }, { label: 'mid band', color: C.green }, { label: 'high band', color: C.pink }], { x: p.box.x + p.box.w - 120, y: p.box.y + p.box.h - 62 });
+    if (!buffered) p.text(20 * 1.15, 3, 'buffers removed: corners move and levels drop', { color: C.red, size: 11 });
+  }
+  const faders = document.getElementById('faders');
+  const gainNodes = {};
+  ['lo', 'mid', 'hi'].forEach(function (k) {
+    const wrap = document.createElement('label');
+    wrap.className = 'fader';
+    const name = k === 'lo' ? 'low' : k === 'mid' ? 'mid' : 'high';
+    wrap.innerHTML = '<output>80%</output><input type="range" min="0" max="1" step="0.01" value="0.8"><span class="name">' + name + '</span>';
+    const inp = wrap.querySelector('input');
+    const out = wrap.querySelector('output');
+    inp.addEventListener('input', function () {
+      gains[k] = parseFloat(inp.value);
+      out.textContent = Math.round(gains[k] * 100) + '%';
+      if (gainNodes[k]) gainNodes[k].gain.setTargetAtTime(gains[k], gainNodes[k].context.currentTime, 0.02);
+      drawEq();
+    });
+    faders.appendChild(wrap);
+  });
+  const eqrow = document.getElementById('eqrow');
+  let ac = null;
+  let srcNodes = [];
+  let srcKind = 'beat';
+  let playing = false;
+  let beatTimer = null;
+  function coeffs(fc, fs, type) {
+    const K = Math.tan(Math.PI * fc / fs);
+    const a1 = (K - 1) / (K + 1);
+    if (type === 'lp') return { b: [K / (1 + K), K / (1 + K)], a: [1, a1] };
+    return { b: [1 / (1 + K), -1 / (1 + K)], a: [1, a1] };
+  }
+  function buildGraph() {
+    ac = new (window.AudioContext || window.webkitAudioContext)();
+    const fs = ac.sampleRate;
+    const input = ac.createGain();
+    input.gain.value = 0.5;
+    const cl = coeffs(fLo, fs, 'lp');
+    const ch = coeffs(fHi, fs, 'hp');
+    const chm = coeffs(fLo, fs, 'hp');
+    const clm = coeffs(fHi, fs, 'lp');
+    const lpN = ac.createIIRFilter(cl.b, cl.a);
+    const hpN = ac.createIIRFilter(ch.b, ch.a);
+    const m1 = ac.createIIRFilter(chm.b, chm.a);
+    const m2 = ac.createIIRFilter(clm.b, clm.a);
+    gainNodes.lo = ac.createGain(); gainNodes.mid = ac.createGain(); gainNodes.hi = ac.createGain();
+    gainNodes.lo.gain.value = gains.lo; gainNodes.mid.gain.value = gains.mid; gainNodes.hi.gain.value = gains.hi;
+    const sum = ac.createGain();
+    sum.gain.value = 0.9;
+    analyser = ac.createAnalyser();
+    analyser.fftSize = 2048;
+    analyser.smoothingTimeConstant = 0.8;
+    specBuf = new Uint8Array(analyser.frequencyBinCount);
+    input.connect(lpN).connect(gainNodes.lo).connect(sum);
+    input.connect(m1).connect(m2).connect(gainNodes.mid).connect(sum);
+    input.connect(hpN).connect(gainNodes.hi).connect(sum);
+    sum.connect(analyser).connect(ac.destination);
+    return input;
+  }
+  let inputNode = null;
+  function stopSources() {
+    srcNodes.forEach(function (n) { try { n.stop(); } catch (e) {} try { n.disconnect(); } catch (e) {} });
+    srcNodes = [];
+    if (beatTimer) { clearInterval(beatTimer); beatTimer = null; }
+  }
+  function noiseBuffer() {
+    const len = ac.sampleRate * 2;
+    const buf = ac.createBuffer(1, len, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    let b0 = 0, b1 = 0, b2 = 0;
+    for (let i = 0; i < len; i++) {
+      const wht = Math.random() * 2 - 1;
+      b0 = 0.99765 * b0 + wht * 0.0990460;
+      b1 = 0.96300 * b1 + wht * 0.2965164;
+      b2 = 0.57000 * b2 + wht * 1.0526913;
+      d[i] = (b0 + b1 + b2 + wht * 0.1848) * 0.25;
+    }
+    return buf;
+  }
+  function startSource() {
+    stopSources();
+    if (srcKind === 'noise') {
+      const n = ac.createBufferSource();
+      n.buffer = noiseBuffer();
+      n.loop = true;
+      n.connect(inputNode);
+      n.start();
+      srcNodes.push(n);
+    } else if (srcKind === 'chord') {
+      [110, 138.6, 164.8, 220].forEach(function (f, i) {
+        const o = ac.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.value = f;
+        const g = ac.createGain();
+        g.gain.value = 0.12;
+        o.connect(g).connect(inputNode);
+        o.start();
+        srcNodes.push(o);
+      });
+    } else {
+      const nb = noiseBuffer();
+      let stepIdx = 0;
+      let next = ac.currentTime + 0.05;
+      const stepLen = 0.14;
+      function kick(t) {
+        const o = ac.createOscillator();
+        const g = ac.createGain();
+        o.frequency.setValueAtTime(160, t);
+        o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+        g.gain.setValueAtTime(0.9, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+        o.connect(g).connect(inputNode);
+        o.start(t); o.stop(t + 0.32);
+      }
+      function hat(t, open) {
+        const n = ac.createBufferSource();
+        n.buffer = nb;
+        const f = ac.createBiquadFilter();
+        f.type = 'highpass'; f.frequency.value = 6000;
+        const g = ac.createGain();
+        g.gain.setValueAtTime(0.35, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + (open ? 0.25 : 0.05));
+        n.connect(f).connect(g).connect(inputNode);
+        n.start(t); n.stop(t + 0.3);
+      }
+      function snare(t) {
+        const n = ac.createBufferSource();
+        n.buffer = nb;
+        const f = ac.createBiquadFilter();
+        f.type = 'bandpass'; f.frequency.value = 1800; f.Q.value = 0.7;
+        const g = ac.createGain();
+        g.gain.setValueAtTime(0.5, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+        n.connect(f).connect(g).connect(inputNode);
+        n.start(t); n.stop(t + 0.2);
+        const o = ac.createOscillator();
+        o.frequency.value = 190;
+        const g2 = ac.createGain();
+        g2.gain.setValueAtTime(0.4, t);
+        g2.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+        o.connect(g2).connect(inputNode);
+        o.start(t); o.stop(t + 0.12);
+      }
+      function bass(t, f) {
+        const o = ac.createOscillator();
+        o.type = 'square';
+        o.frequency.value = f;
+        const fl = ac.createBiquadFilter();
+        fl.type = 'lowpass'; fl.frequency.value = 900;
+        const g = ac.createGain();
+        g.gain.setValueAtTime(0.22, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + stepLen * 0.9);
+        o.connect(fl).connect(g).connect(inputNode);
+        o.start(t); o.stop(t + stepLen);
+      }
+      const bassLine = [55, 0, 55, 82.4, 0, 65.4, 0, 73.4, 55, 0, 55, 82.4, 0, 98, 0, 73.4];
+      beatTimer = setInterval(function () {
+        while (next < ac.currentTime + 0.3) {
+          const s = stepIdx % 16;
+          if (s % 4 === 0) kick(next);
+          if (s % 8 === 4) snare(next);
+          hat(next, s % 4 === 2);
+          if (bassLine[s]) bass(next, bassLine[s]);
+          next += stepLen;
+          stepIdx++;
+        }
+      }, 80);
+    }
+  }
+  const playBtn = Site.button(eqrow, { label: 'Play', primary: true, onClick: function () {
+    if (!ac) { inputNode = buildGraph(); }
+    if (!playing) {
+      ac.resume();
+      startSource();
+      playing = true;
+      playBtn.textContent = 'Stop';
+    } else {
+      stopSources();
+      playing = false;
+      playBtn.textContent = 'Play';
+    }
+  } });
+  Site.select(eqrow, { value: 'beat', options: [{ value: 'beat', label: 'Beat' }, { value: 'chord', label: 'Chord' }, { value: 'noise', label: 'Pink noise' }], onChange: function (v) { srcKind = v; if (playing) startSource(); } });
+  Site.toggle(eqrow, { label: 'Buffers between stages', value: true, onChange: function (v) { buffered = v; drawEq(); } });
+  drawEq();
+  eqcan.onresize = drawEq;
+  const eqLoop = Site.loop(eqcan.el, function () { drawEq(); });
+  eqLoop.start();
+})();
+</script>
 </body>
 </html>

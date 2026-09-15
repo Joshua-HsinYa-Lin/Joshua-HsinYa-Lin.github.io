@@ -206,7 +206,7 @@ main { max-width: var(--max); margin: 0 auto; padding: 1.5rem 1rem 4rem; }
 .stat span { color: var(--ink2); font-size: 0.85rem; }
 
 figure { margin: 1rem 0; }
-figure img { border: 1px solid var(--rule); border-radius: 8px; background: #fff; display: block; }
+figure img { border: 1px solid var(--rule); border-radius: 8px; background: #fff; display: block; max-height: 620px; width: auto; max-width: 100%; }
 figcaption { color: var(--muted); font-size: 0.86rem; margin-top: 0.4rem; max-width: 68ch; }
 .figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
 
