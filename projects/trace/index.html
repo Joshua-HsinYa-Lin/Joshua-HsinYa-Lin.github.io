@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How much of your weight does a helper carry? — Hsin Ya Lin</title>
+<link rel="stylesheet" href="../../shared/site.css">
+<script src="../../shared/site.js"></script>
+</head>
+<body>
+<header class="site-header" data-root="../../"></header>
+<main class="project">
+<div class="kicker">Purdue TRACE Laboratory · Undergraduate Research Assistant</div>
+<h1>How much of your weight does a helper carry?</h1>
+<div class="when">Jan 2026 to present · West Lafayette, Indiana</div>
+<p class="lede">Before a humanoid robot can help someone walk, you need to know what forces a human helper actually provides. I take motion capture of two people walking together, drive a musculoskeletal simulation with it, and pull the joint forces out.</p>
+<p class="note">The interactive version of this page is being built. What is here now is the summary and the figures.</p>
+
+<section class="sub">
+<h2>What I did</h2>
+<ul>
+<li>Processed 3D ViCon motion-capture data in MATLAB to drive AnyBody simulations of spatial kinematics and inverse dynamics for human-robot interaction systems.</li>
+<li>Extracted and analyzed per-joint forces and torques, comparing the assisted side against the unassisted side to quantify how much load a helper actually removes.</li>
+<li>Tested whether AnyBody's residual Hand of God force was masking failed ground reaction force prediction, reporting R² 0.03 and cosine similarity 0.58 as evidence against the hypothesis across 10+ force and moment channels.</li>
+<li>Consolidated a 16-module extraction, plotting and reporting workflow into a single pipeline with fallback path resolution that survives AnyBody changing its output layout.</li>
+</ul>
+<p><a href="https://github.com/Joshua-HsinYa-Lin/trace-lab-humanoid-walking-analysis" target="_blank" rel="noopener">Repository on GitHub</a>.</p>
+</section>
+
+<section class="sub">
+<h2>Figures</h2>
+<div class="figs">
+<figure><img src="grf-left-right.png" alt="Ground reaction force, left against right side" loading="lazy"><figcaption>Ground reaction force, left against right foot, across three axes.</figcaption></figure>
+<figure><img src="single-vs-interaction.png" alt="Single-person against two-person interaction forces" loading="lazy"><figcaption>Single person baseline against the two person interaction forces.</figcaption></figure>
+</div>
+</section>
+</main>
+<footer class="site-footer"></footer>
+</body>
+</html>

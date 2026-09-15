@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wiring a robot so a fault finds itself — Hsin Ya Lin</title>
+<link rel="stylesheet" href="../../shared/site.css">
+<script src="../../shared/site.js"></script>
+</head>
+<body>
+<header class="site-header" data-root="../../"></header>
+<main class="project">
+<div class="kicker">FIRST Robotics Team 8020 · Electrical Team Lead</div>
+<h1>Wiring a robot so a fault finds itself</h1>
+<div class="when">Aug 2023 to Jun 2024 · Taipei</div>
+<p class="lede">A competition robot is rebuilt weekly and breaks on a schedule. The electrical system I designed for it puts a labeled connector between every subsystem and the rest of the machine, so a fault is found by unplugging things rather than tracing wires.</p>
+<p class="note">The interactive version of this page is being built. What is here now is the summary.</p>
+
+<section class="sub">
+<h2>What I did</h2>
+<ul>
+<li>Designed a modular power distribution scheme in which every subsystem meets the robot at a labeled connector, so an electrical fault isolates by disconnecting one function instead of tracing the whole harness.</li>
+<li>Designed the electrical system for each season's competition robot in KiCad, and specified and crimped the harness across power, signal, CAN, network and pneumatic circuits, selecting connector type and wire gauge by current rating.</li>
+<li>Calibrated and programmed CAN bus motor controllers driving brushless actuators and encoders, and integrated a multimodal sensor system of gyroscope, camera and color sensors into closed-loop control, with robot code written in LabVIEW.</li>
+<li>Evaluated pneumatic control hardware against solenoid channel count, CAN compatibility and built-in protection, and documented the trade study.</li>
+</ul>
+</section>
+
+<section class="sub">
+<h2>The robot</h2>
+<figure><img src="robot-2023.png" alt="Team 8020 competition robot, 2023 season" loading="lazy"><figcaption>The 2023 season robot.</figcaption></figure>
+<p><a href="https://www.ckrobotics.org/The-team/leaders-mentors/leaders" target="_blank" rel="noopener">Team 8020</a></p>
+</section>
+</main>
+<footer class="site-footer"></footer>
+</body>
+</html>

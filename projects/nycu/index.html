@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Decoding bits that moved — Hsin Ya Lin</title>
+<link rel="stylesheet" href="../../shared/site.css">
+<script src="../../shared/site.js"></script>
+</head>
+<body>
+<header class="site-header" data-root="../../"></header>
+<main class="project">
+<div class="kicker">NYCU Institute of Communications · Software Research Intern</div>
+<h1>Decoding bits that moved</h1>
+<div class="when">May 2026 to Jul 2026 · Hsinchu, Taiwan</div>
+<p class="lede">Classical error correction assumes every bit stays in its slot. Delete one bit and every bit after it shifts, so a decoder that compares position by position sees dozens of errors where there was one. I benchmarked machine learning decoders against that channel.</p>
+<p class="note">The interactive version of this page is being built. What is here now is the summary.</p>
+
+<section class="sub">
+<h2>What I did</h2>
+<ul>
+<li>Applied Transformer architectures to error-correction coding over synchronization-error channels, where an insertion or deletion shifts every following bit and classical decoders lose the position assumption they rest on.</li>
+<li>Built three designs in PyTorch on CUDA: an autoregressive encoder-decoder, a Siamese encoder learning a 256-dimensional space where Euclidean distance tracks edit distance, and a CTC head decoding bits directly.</li>
+<li>Cut edit-distance estimation error to 2.09 RMSE against 2.62 and 2.91 for the CGK and CNN-ED baselines, with BCJR as the classical reference, across 1M binary codewords.</li>
+</ul>
+<p><a href="https://github.com/Joshua-HsinYa-Lin/error-correction-coding-with-transformer" target="_blank" rel="noopener">Repository and engineering notebook on GitHub</a>.</p>
+</section>
+</main>
+<footer class="site-footer"></footer>
+</body>
+</html>

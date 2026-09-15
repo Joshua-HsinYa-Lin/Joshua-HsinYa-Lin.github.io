@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The board that disconnects the battery — Hsin Ya Lin</title>
+<link rel="stylesheet" href="../../shared/site.css">
+<script src="../../shared/site.js"></script>
+</head>
+<body>
+<header class="site-header" data-root="../../"></header>
+<main class="project">
+<div class="kicker">Purdue Lunabotics · Power and Hardware Team Developer</div>
+<h1>The board that disconnects the battery</h1>
+<div class="when">Sep 2025 to Aug 2026 · West Lafayette, Indiana</div>
+<p class="lede">A lithium pack on a rover will happily deliver a short circuit until it catches fire. This board watches six cells and opens the path to the robot the moment any of them is asked for too much.</p>
+<p class="note">The interactive version of this page is being built. What is here now is the summary and the design files.</p>
+
+<section class="sub">
+<h2>What I did</h2>
+<ul>
+<li>Designed a 24V, 20A six-cell battery sensing and protection board around the TI BQ77915 in KiCad, and verified the analog behavior in LTspice before committing to fabrication.</li>
+<li>Laid the board out for fabrication, then hand-assembled and micro-soldered 50+ components onto the finished board.</li>
+<li>Diagnosed voltage and thermal variances during bench testing to prevent system failure, and integrated the board into the rover power distribution system.</li>
+</ul>
+</section>
+
+<section class="sub">
+<h2>Design files</h2>
+<div class="figs">
+<figure><img src="schematic.png" alt="Battery protection board schematic" loading="lazy"><figcaption>Schematic: two stacked BQ7791504 protectors, cell balancing, thermistors, and load removal detection.</figcaption></figure>
+<figure><img src="board.jpg" alt="BQ77915 battery protection board layout" loading="lazy"><figcaption>Board layout render.</figcaption></figure>
+</div>
+</section>
+</main>
+<footer class="site-footer"></footer>
+</body>
+</html>

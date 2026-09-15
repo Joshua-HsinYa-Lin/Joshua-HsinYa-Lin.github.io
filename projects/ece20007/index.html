@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A boost converter and an equalizer — Hsin Ya Lin</title>
+<link rel="stylesheet" href="../../shared/site.css">
+<script src="../../shared/site.js"></script>
+</head>
+<body>
+<header class="site-header" data-root="../../"></header>
+<main class="project">
+<div class="kicker">Purdue ECE 20007 · Power Electronics Design Projects</div>
+<h1>A boost converter and an equalizer, measured against their simulations</h1>
+<div class="when">Jan 2026 to May 2026 · West Lafayette, Indiana</div>
+<p class="lede">Two breadboard circuits, each designed on paper, simulated in LTspice, built, and measured. The interesting part is not that they worked; it is where the bench disagreed with the simulation and why.</p>
+<p class="note">The interactive version of this page is being built. What is here now is the summary and the schematics.</p>
+
+<section class="sub">
+<h2>What I did</h2>
+<ul>
+<li>Designed, built and measured an adjustable DC-DC boost converter stepping a 5V input to a 5V to 30V range, sizing the switching duty cycle from the boost transfer function rather than tuning it empirically. A PMOS output ceiling limiter holds the rail under no load or a shorted load, a failure mode that otherwise destroys the output capacitors.</li>
+<li>Reconciled measured output against LTspice by accounting for wire and breadboard resistance, component tolerance, and device on-resistance.</li>
+<li>Designed a three-band analog audio equalizer with active RC filters, LM324 op-amp buffers placed to remove loading between the filter and volume stages, per-band inverting amplifiers for gain, and a power amplifier stage driving over 400 mW into 8 ohms.</li>
+</ul>
+</section>
+
+<section class="sub">
+<h2>Schematics</h2>
+<div class="figs">
+<figure><img src="boost-schematic.png" alt="Boost converter schematic" loading="lazy"><figcaption>Boost converter: 555 astable PWM into an NMOS switch, with a PMOS ceiling limiter on the timer reset.</figcaption></figure>
+<figure><img src="eq-schematic.png" alt="Three-band audio equalizer schematic" loading="lazy"><figcaption>Three band equalizer: passive RC bands, LM324 buffers, per band inverting volume stages, summing stage, and LM386 power amplifier.</figcaption></figure>
+</div>
+</section>
+</main>
+<footer class="site-footer"></footer>
+</body>
+</html>
