@@ -4,8 +4,31 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Wiring a robot so a fault finds itself — Hsin Ya Lin</title>
+<meta name="description" content="Find a short in a single harness, then in one with a labeled connector at every subsystem, and count your steps. Then pick the wire and connector for a current, and see the disconnect bug that was fixed.">
 <link rel="stylesheet" href="../../shared/site.css">
 <script src="../../shared/site.js"></script>
+<style>
+.game { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 1rem; }
+@media (max-width: 760px) { .game { grid-template-columns: 1fr; } }
+.gamelog { font-family: var(--mono); font-size: 0.82rem; color: var(--panel-ink); background: #0a0d12; border-radius: 6px; padding: 0.6rem 0.75rem; min-height: 120px; max-height: 260px; overflow-y: auto; }
+.gamelog div { padding: 1px 0; }
+.gamelog .ok { color: var(--green); }
+.gamelog .bad { color: var(--red); }
+.gamelog .dim { color: var(--panel-muted); }
+.score { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.6rem; font-family: var(--mono); font-size: 0.82rem; }
+.score div { background: #0a0d12; border-radius: 6px; padding: 0.5rem 0.7rem; color: var(--panel-muted); }
+.score b { display: block; font-size: 1.2rem; color: var(--amber); }
+table.tbl.dark { color: var(--panel-ink); }
+table.tbl.dark th, table.tbl.dark td { border-color: var(--panel-rule); }
+table.tbl.dark th { color: var(--panel-muted); }
+.ba { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+@media (max-width: 640px) { .ba { grid-template-columns: 1fr; } }
+.ba div { background: var(--bg2); border: 1px solid var(--rule); border-radius: 10px; padding: 0.7rem 0.9rem; font-size: 0.92rem; }
+.ba div b { display: block; margin-bottom: 0.3rem; font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.ba div.before b { color: var(--red); }
+.ba div.after b { color: var(--accent2); }
+.ba ul { margin: 0; padding-left: 1.1rem; }
+</style>
 </head>
 <body>
 <header class="site-header" data-root="../../"></header>
@@ -13,25 +36,369 @@
 <div class="kicker">FIRST Robotics Team 8020 · Electrical Team Lead</div>
 <h1>Wiring a robot so a fault finds itself</h1>
 <div class="when">Aug 2023 to Jun 2024 · Taipei</div>
-<p class="lede">A competition robot is rebuilt weekly and breaks on a schedule. The electrical system I designed for it puts a labeled connector between every subsystem and the rest of the machine, so a fault is found by unplugging things rather than tracing wires.</p>
-<p class="note">The interactive version of this page is being built. What is here now is the summary.</p>
+<p class="lede">A competition robot is rebuilt weekly and breaks on a schedule. My post mortem of the 2023 build season recorded the team losing days pulling and re-pulling wiring on prototypes. The fix was an architecture: every subsystem meets the rest of the robot at a connector, and both halves of every connector carry the same label. A fault is then found by unplugging things, not by tracing wires.</p>
+<div class="tags"><span>Power distribution</span><span>Wire harness</span><span>CAN bus</span><span>Pneumatics</span><span>LabVIEW</span><span>KiCad</span><span>Root cause analysis</span></div>
 
-<section class="sub">
-<h2>What I did</h2>
-<ul>
-<li>Designed a modular power distribution scheme in which every subsystem meets the robot at a labeled connector, so an electrical fault isolates by disconnecting one function instead of tracing the whole harness.</li>
-<li>Designed the electrical system for each season's competition robot in KiCad, and specified and crimped the harness across power, signal, CAN, network and pneumatic circuits, selecting connector type and wire gauge by current rating.</li>
-<li>Calibrated and programmed CAN bus motor controllers driving brushless actuators and encoders, and integrated a multimodal sensor system of gyroscope, camera and color sensors into closed-loop control, with robot code written in LabVIEW.</li>
-<li>Evaluated pneumatic control hardware against solenoid channel count, CAN compatibility and built-in protection, and documented the trade study.</li>
-</ul>
+<section class="sub" id="game">
+<h2>Find the fault</h2>
+<p>Somewhere in the robot, one subsystem's feed is shorted and the main breaker trips at power on. Find which one. In the single harness, wires run in one bundle with nothing labeled, so each step is tracing one wire end back to whatever it feeds. In the modular harness, each subsystem hangs off its own labeled connector, so a step is unplugging any set of them and trying power. Play both and compare the step count.</p>
+<div class="panel">
+  <div class="btnrow" id="gmode" style="margin-top:0"></div>
+  <div class="game">
+    <div>
+      <canvas id="robot" aria-label="Robot wiring diagram"></canvas>
+      <div class="btnrow" id="grow"></div>
+    </div>
+    <div>
+      <div class="gamelog" id="glog"></div>
+      <div class="score" id="gscore"></div>
+    </div>
+  </div>
+  <p class="hint" id="ghint"></p>
+</div>
+<p>The mechanism is two things at once. A label gives a wire an identity, so you know what you are holding without following it. A connector gives a subsystem a boundary, so you can take it out of the circuit in one motion and test what is left. With eight subsystems, halving the plugged in set finds the fault in three tests. Without either, you are searching a bundle one wire at a time. The cost is real, since every connector is a joint that can fail and every crimp is a job, and that trade was the design decision.</p>
 </section>
 
-<section class="sub">
+<section class="sub" id="wire">
+<h2>Pick the wire and the connector</h2>
+<p>Each circuit on the robot got its connector and wire gauge from its current. XT30 connectors are rated for 30 A continuous, XT60 for 60 A, and the wire gauge follows a standard chassis wiring ampacity table. Drag the current and see what the circuit gets. Below it, what the harness for two robots actually came to.</p>
+<div class="panel">
+  <div class="controls" id="wctl"></div>
+  <div id="wro"></div>
+  <canvas id="harness" aria-label="Connector and wire tallies for two robots"></canvas>
+  <p class="hint">Counted from the harness spreadsheet for the two 2023 robots. Wire lengths per robot, connector bodies per robot.</p>
+</div>
+</section>
+
+<section class="sub" id="radio">
+<h2>The disconnect bug</h2>
+<p>The biggest bug I fixed on the team was not a wiring fault at all, or not only one. The robot kept dropping its connection to the driver station during matches. The root cause was two things together: where the radio was mounted, and physical instability in the wired connections between the radio and the controller. The fix was a set of changes, and the disconnections went from very frequent to very rare.</p>
+<div class="ba">
+  <div class="before"><b>Before</b><ul><li>Radio mounted inside the chassis, among motors and metal</li><li>Dupont jumper connectors on the radio power</li><li>Standard Ethernet cable, connector free to move at the jack</li><li>Removable connections on every section of the run</li></ul></div>
+  <div class="after"><b>After</b><ul><li>Radio on a 3D printed mount outside the robot, placed for signal and for mechanical stability</li><li>Dupont connectors replaced with XT30</li><li>CAT 6 cable, with a printed RJ45 holder that fixes the plug at the jack</li><li>Sections hard soldered instead of relying on a removable connection</li></ul></div>
+</div>
+<p>That is the same discipline as the harness: identify the joint that fails, and either remove it or give it a mechanical reason not to move.</p>
+</section>
+
+<section class="sub" id="can">
+<h2>One bus, many motors</h2>
+<p>Motor controllers on the robot sit on a CAN bus, one twisted pair shared by every device, each with an address. A command frame carries the target's ID; every controller sees it and only the addressed one acts, then reports its own telemetry back on the same pair. That is why the harness carries a dedicated CAN run, and why a single bad termination can take down every motor at once. Click a controller.</p>
+<div class="panel">
+  <canvas id="canbus" aria-label="CAN bus with motor controllers"></canvas>
+  <p class="hint">Falcon and NEO 550 brushless motors through VersaPlanetary gearboxes, calibrated and programmed over CAN, with encoders and Limelight vision closing the loops. Robot code in LabVIEW.</p>
+</div>
+</section>
+
+<section class="sub" id="pneu">
+<h2>The pneumatics trade study</h2>
+<p>Choosing the pneumatic controller was a documented comparison rather than a default. Both candidates talk CAN and both carry overcurrent and reverse polarity protection; the deciding line was solenoid channel count.</p>
+<table class="tbl">
+<tr><th>Criterion</th><th>Pneumatic Hub</th><th>Pneumatic Control Module</th></tr>
+<tr><td>Solenoid channels</td><td class="num">16</td><td class="num">8</td></tr>
+<tr><td>Bus</td><td>CAN</td><td>CAN</td></tr>
+<tr><td>Overcurrent protection</td><td>yes</td><td>yes</td></tr>
+<tr><td>Reverse polarity protection</td><td>yes</td><td>yes</td></tr>
+</table>
+<p>The same post mortem records a second pneumatics lesson: metric and imperial fittings were confused repeatedly, causing leaks and wasted debugging time, and the corrective action was a labeling standard. Nine items across eleven categories, each with a root cause, a corrective action, a best practice and a lesson learned. Three of the nine were electrical.</p>
+</section>
+
+<section class="sub" id="robotpic">
 <h2>The robot</h2>
-<figure><img src="robot-2023.png" alt="Team 8020 competition robot, 2023 season" loading="lazy"><figcaption>The 2023 season robot.</figcaption></figure>
+<figure><img src="robot-2023.png" alt="Team 8020 competition robot, 2023 season" loading="lazy"><figcaption>The 2023 season robot. Electrical system designed in KiCad each season, harness specified and crimped across power, signal, CAN, network and pneumatic circuits.</figcaption></figure>
 <p><a href="https://www.ckrobotics.org/The-team/leaders-mentors/leaders" target="_blank" rel="noopener">Team 8020</a></p>
 </section>
+
+<div class="next"><a href="../../#projects">All projects</a><a href="../trace/">Next: how much of your weight does a helper carry?</a></div>
 </main>
 <footer class="site-footer"></footer>
+
+<script>
+(function () {
+  const C = Site.colors;
+  const SUBS = ['drive left', 'drive right', 'elevator', 'intake', 'shooter', 'turret', 'compressor', 'radio + RIO'];
+  const G = { mode: 'mono', fault: 0, steps: 0, done: false, traced: {}, unplugged: {}, wires: [], history: { mono: [], mod: [] }, hover: -1 };
+  function newRound() {
+    G.fault = Math.floor(Math.random() * SUBS.length);
+    G.steps = 0; G.done = false; G.traced = {}; G.unplugged = {};
+    G.wires = [];
+    for (let s = 0; s < SUBS.length; s++) for (let k = 0; k < 3; k++) G.wires.push({ sub: s, kind: ['+', '−', 'sig'][k] });
+    for (let i = G.wires.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = G.wires[i]; G.wires[i] = G.wires[j]; G.wires[j] = t; }
+    log('New round. The breaker trips at power on. Find the shorted subsystem.', 'dim');
+    updateHint();
+  }
+  const glog = document.getElementById('glog');
+  function log(s, cls) {
+    const d = document.createElement('div');
+    if (cls) d.className = cls;
+    d.textContent = s;
+    glog.appendChild(d);
+    glog.scrollTop = glog.scrollHeight;
+  }
+  function finish(found) {
+    G.done = true;
+    if (found) {
+      log('Fault isolated: ' + SUBS[G.fault] + ' in ' + G.steps + ' steps.', 'ok');
+      G.history[G.mode].push(G.steps);
+    }
+    updateScore();
+  }
+  function updateScore() {
+    const el = document.getElementById('gscore');
+    function avg(a) { return a.length ? (a.reduce(function (x, y) { return x + y; }, 0) / a.length).toFixed(1) : '–'; }
+    el.innerHTML = '<div>single harness<b>' + avg(G.history.mono) + '</b>avg steps over ' + G.history.mono.length + ' rounds</div>' +
+      '<div>modular harness<b>' + avg(G.history.mod) + '</b>avg steps over ' + G.history.mod.length + ' rounds</div>';
+  }
+  function updateHint() {
+    document.getElementById('ghint').textContent = G.mode === 'mono'
+      ? 'Click a wire end at the distribution panel to trace it back to what it feeds. Each trace is one step.'
+      : 'Click connectors to unplug or replug them, then press Test power. Each test is one step.';
+  }
+  const gmode = document.getElementById('gmode');
+  Site.select(gmode, { value: 'mono', options: [{ value: 'mono', label: 'Single harness, unlabeled' }, { value: 'mod', label: 'Modular, labeled connectors' }], onChange: function (v) { G.mode = v; glog.innerHTML = ''; newRound(); } });
+  const grow = document.getElementById('grow');
+  const testBtn = Site.button(grow, { label: 'Test power', primary: true, onClick: function () {
+    if (G.mode !== 'mod' || G.done) return;
+    G.steps++;
+    const plugged = SUBS.map(function (_, i) { return i; }).filter(function (i) { return !G.unplugged[i]; });
+    const trips = plugged.indexOf(G.fault) >= 0;
+    const names = plugged.length ? plugged.map(function (i) { return SUBS[i]; }).join(', ') : 'nothing';
+    log('Test ' + G.steps + ' with ' + names + ' plugged in: ' + (trips ? 'breaker TRIPS' : 'robot powers up'), trips ? 'bad' : 'ok');
+    if (trips && plugged.length === 1) finish(true);
+    else if (!trips && plugged.length === SUBS.length - 1) { finish(true); }
+  } });
+  Site.button(grow, { label: 'New round', onClick: function () { newRound(); } });
+  const robot = Site.canvas(document.getElementById('robot'), { aspect: 0.78 });
+  const hit = [];
+  function layout() {
+    hit.length = 0;
+    const w = robot.w, h = robot.h;
+    const pdp = { x: w * 0.5, y: h * 0.5, r: 30 };
+    const nodes = SUBS.map(function (s, i) {
+      const a = i / SUBS.length * Math.PI * 2 - Math.PI / 2;
+      const R = Math.min(w, h) * 0.38;
+      return { x: pdp.x + Math.cos(a) * R, y: pdp.y + Math.sin(a) * R * 0.95, a: a };
+    });
+    return { pdp: pdp, nodes: nodes };
+  }
+  function drawRobot() {
+    const c = robot.ctx, w = robot.w, h = robot.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const L = layout();
+    c.font = '11px ' + Site.mono();
+    c.textBaseline = 'middle';
+    if (G.mode === 'mono') {
+      const n = G.wires.length;
+      const bx0 = L.pdp.x - 120, bw = 240;
+      L.nodes.forEach(function (nd, i) {
+        c.strokeStyle = '#2a3446';
+        c.lineWidth = 6;
+        c.beginPath(); c.moveTo(L.pdp.x, L.pdp.y); c.lineTo(nd.x, nd.y); c.stroke();
+      });
+      for (let i = 0; i < n; i++) {
+        const wr = G.wires[i];
+        const x = bx0 + (i + 0.5) * bw / n;
+        const y = L.pdp.y + 62;
+        const tr = G.traced[i];
+        c.strokeStyle = tr ? (wr.sub === G.fault ? C.red : C.green) : '#8a93a5';
+        c.lineWidth = 3;
+        c.beginPath(); c.moveTo(x, L.pdp.y + 30); c.lineTo(x, y); c.stroke();
+        c.fillStyle = tr ? (wr.sub === G.fault ? C.red : C.green) : '#8a93a5';
+        c.beginPath(); c.arc(x, y, 4, 0, Math.PI * 2); c.fill();
+        hit.push({ x: x, y: y, r: 9, wire: i });
+      }
+      c.fillStyle = C.muted;
+      c.textAlign = 'center';
+      c.fillText('24 wire ends, unlabeled', L.pdp.x, L.pdp.y + 82);
+    } else {
+      L.nodes.forEach(function (nd, i) {
+        const un = G.unplugged[i];
+        const mx = L.pdp.x + (nd.x - L.pdp.x) * 0.55, my = L.pdp.y + (nd.y - L.pdp.y) * 0.55;
+        c.strokeStyle = un ? '#2a3446' : C.cyan;
+        c.lineWidth = 4;
+        c.beginPath(); c.moveTo(L.pdp.x, L.pdp.y); c.lineTo(mx, my); c.stroke();
+        c.beginPath(); c.moveTo(un ? mx + (nd.x - mx) * 0.3 : mx, un ? my + (nd.y - my) * 0.3 : my); c.lineTo(nd.x, nd.y); c.stroke();
+        c.fillStyle = un ? '#3a4661' : C.amber;
+        c.fillRect(mx - 7, my - 7, 14, 14);
+        c.fillStyle = C.ink;
+        c.font = '10px ' + Site.mono();
+        c.textAlign = 'center';
+        c.fillText('C' + (i + 1), mx, my - 14);
+        hit.push({ x: mx, y: my, r: 14, conn: i });
+      });
+    }
+    L.nodes.forEach(function (nd, i) {
+      c.fillStyle = '#141a24';
+      c.strokeStyle = (G.done && i === G.fault) ? C.red : '#3a4661';
+      c.lineWidth = 2;
+      c.beginPath(); c.roundRect(nd.x - 44, nd.y - 15, 88, 30, 6); c.fill(); c.stroke();
+      c.fillStyle = C.ink;
+      c.font = '11px ' + Site.mono();
+      c.textAlign = 'center';
+      c.fillText(SUBS[i], nd.x, nd.y);
+    });
+    c.fillStyle = G.done ? C.green : C.red;
+    c.beginPath(); c.arc(L.pdp.x, L.pdp.y, L.pdp.r, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#0c0f15';
+    c.font = '600 11px ' + Site.mono();
+    c.textAlign = 'center';
+    c.fillText('PDP', L.pdp.x, L.pdp.y - 6);
+    c.fillText(G.done ? 'ok' : 'TRIP', L.pdp.x, L.pdp.y + 7);
+  }
+  robot.el.addEventListener('click', function (e) {
+    if (G.done) return;
+    drawRobot();
+    const rect = robot.el.getBoundingClientRect();
+    const x = e.clientX - rect.left, y = e.clientY - rect.top;
+    for (const hz of hit) {
+      if (Math.hypot(x - hz.x, y - hz.y) <= hz.r) {
+        if (hz.wire !== undefined) {
+          if (G.traced[hz.wire]) return;
+          G.traced[hz.wire] = true;
+          G.steps++;
+          const wr = G.wires[hz.wire];
+          const bad = wr.sub === G.fault;
+          log('Trace ' + G.steps + ': this wire is ' + SUBS[wr.sub] + ' ' + wr.kind + (bad ? ', and it reads shorted' : ', fine'), bad ? 'bad' : 'dim');
+          if (bad) finish(true);
+        } else if (hz.conn !== undefined) {
+          G.unplugged[hz.conn] = !G.unplugged[hz.conn];
+          log((G.unplugged[hz.conn] ? 'Unplugged ' : 'Replugged ') + SUBS[hz.conn] + ' at C' + (hz.conn + 1), 'dim');
+        }
+        return;
+      }
+    }
+  });
+  robot.el.style.cursor = 'pointer';
+  const robotLoop = Site.loop(robot.el, function () { drawRobot(); testBtn.disabled = G.mode !== 'mod'; });
+  robotLoop.start();
+  newRound();
+  updateScore();
+
+  /* Wire and connector picker */
+  const AMPACITY = [[24, 3.5], [22, 7], [20, 11], [18, 16], [16, 22], [14, 32], [12, 41], [10, 55], [8, 73]];
+  const wctl = document.getElementById('wctl');
+  const wro = Site.readouts(document.getElementById('wro'), [{ key: 'conn', label: 'connector', color: 'amber' }, { key: 'awg', label: 'wire', color: 'cyan' }, { key: 'note', label: '' }]);
+  Site.slider(wctl, { label: 'circuit current', min: 0.5, max: 80, step: 0.5, value: 20, unit: 'A', digits: 1, wide: true, onInput: pick });
+  function pick(I) {
+    const conn = I <= 30 ? 'XT30 (30 A)' : (I <= 60 ? 'XT60 (60 A)' : 'above XT60: bus bar or lug');
+    let awg = null;
+    for (const a of AMPACITY) if (a[1] >= I) { awg = a; break; }
+    wro.set('conn', conn);
+    wro.set('awg', awg ? awg[0] + ' AWG (' + awg[1] + ' A chassis rating)' : 'heavier than 8 AWG');
+    wro.set('note', I < 4 ? 'signal class: 24 AWG on this robot' : (I >= 30 ? 'drive and elevator class: 12 AWG on this robot' : 'between the two classes used'));
+  }
+  pick(20);
+  const harness = Site.canvas(document.getElementById('harness'), { height: 240 });
+  function drawHarness() {
+    const c = harness.ctx, w = harness.w, h = harness.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const half = w / 2;
+    const p1 = new Site.Plot(c, { x: [0, 3], y: [0, 24], box: { x: 44, y: 24, w: half - 70, h: h - 64 }, title: 'connector bodies per robot', xticks: [] });
+    const p2 = new Site.Plot(c, { x: [0, 5], y: [0, 10], box: { x: half + 44, y: 24, w: half - 60, h: h - 64 }, title: 'wire per robot, meters', xticks: [] });
+    p1.axes(); p2.axes();
+    const conn = [['XT30', 18, 20], ['XT60', 4, 6], ['RJ45', 2, 4]];
+    const wire = [['12 AWG', 2.46, 2.13], ['24 AWG', 8.61, 9.19], ['CAN', 2.46, 1.9], ['network', 2.0, 2.95], ['pneumatic', 2.3, 0.95]];
+    function bars(p, data) {
+      data.forEach(function (d, i) {
+        const xa = p.px(i + 0.12), xb = p.px(i + 0.5), xc = p.px(i + 0.88);
+        c.fillStyle = C.cyan; c.fillRect(xa, p.py(d[1]), xb - xa - 2, p.py(0) - p.py(d[1]));
+        c.fillStyle = C.amber; c.fillRect(xb, p.py(d[2]), xc - xb - 2, p.py(0) - p.py(d[2]));
+        c.fillStyle = C.muted; c.font = '10px ' + Site.mono(); c.textAlign = 'center'; c.textBaseline = 'top';
+        c.fillText(d[0], (xa + xc) / 2, p.py(0) + 5);
+        c.fillStyle = C.ink; c.textBaseline = 'bottom';
+        c.fillText(String(d[1]), (xa + xb) / 2, p.py(d[1]) - 2);
+        c.fillText(String(d[2]), (xb + xc) / 2, p.py(d[2]) - 2);
+      });
+    }
+    bars(p1, conn); bars(p2, wire);
+    p2.legend([{ label: 'Carrier robot', color: C.cyan }, { label: 'Elevator robot', color: C.amber }], { x: p2.box.x + p2.box.w - 130, y: p2.box.y + 12 });
+  }
+  drawHarness();
+  harness.onresize = drawHarness;
+
+  /* CAN bus */
+  const canvasBus = Site.canvas(document.getElementById('canbus'), { aspect: 0.42 });
+  const CTRL = [['1', 'drive L', 'Falcon'], ['2', 'drive R', 'Falcon'], ['3', 'elevator', 'Falcon'], ['4', 'intake', 'NEO 550'], ['5', 'shooter', 'Falcon'], ['6', 'turret', 'NEO 550']];
+  const frames = [];
+  const canHit = [];
+  function drawCan(t) {
+    const c = canvasBus.ctx, w = canvasBus.w, h = canvasBus.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const busY = h * 0.55;
+    const x0 = 24, x1 = w - 24;
+    c.strokeStyle = '#3a4661';
+    c.lineWidth = 3;
+    c.beginPath(); c.moveTo(x0, busY - 3); c.lineTo(x1, busY - 3); c.stroke();
+    c.beginPath(); c.moveTo(x0, busY + 3); c.lineTo(x1, busY + 3); c.stroke();
+    c.fillStyle = C.muted;
+    c.font = '10px ' + Site.mono();
+    c.textAlign = 'left';
+    c.textBaseline = 'middle';
+    c.fillText('120 Ω', x0 + 4, busY - 14);
+    c.textAlign = 'right';
+    c.fillText('120 Ω', x1 - 4, busY - 14);
+    const rio = { x: 60, y: h * 0.2 };
+    c.fillStyle = '#141a24'; c.strokeStyle = C.amber; c.lineWidth = 2;
+    c.beginPath(); c.roundRect(rio.x - 34, rio.y - 14, 68, 28, 6); c.fill(); c.stroke();
+    c.fillStyle = C.ink; c.font = '600 11px ' + Site.mono(); c.textAlign = 'center';
+    c.fillText('roboRIO', rio.x, rio.y);
+    c.strokeStyle = '#3a4661'; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(rio.x, rio.y + 14); c.lineTo(rio.x, busY); c.stroke();
+    canHit.length = 0;
+    const n = CTRL.length;
+    const span = (x1 - 120 - x0) / n;
+    CTRL.forEach(function (k, i) {
+      const x = x0 + 120 + span * (i + 0.5);
+      const y = h * 0.82;
+      c.strokeStyle = '#3a4661'; c.lineWidth = 2;
+      c.beginPath(); c.moveTo(x, busY); c.lineTo(x, y - 16); c.stroke();
+      const lit = frames.some(function (f) { return f.target === i && f.arrived && t - f.arrived < 0.5; });
+      c.fillStyle = lit ? '#2a3448' : '#141a24';
+      c.strokeStyle = lit ? C.green : '#3a4661';
+      c.beginPath(); c.roundRect(x - 34, y - 16, 68, 32, 6); c.fill(); c.stroke();
+      c.fillStyle = C.ink; c.font = '600 11px ' + Site.mono(); c.textAlign = 'center';
+      c.fillText('ID ' + k[0] + ' ' + k[1], x, y - 4);
+      c.fillStyle = C.muted; c.font = '10px ' + Site.mono();
+      c.fillText(k[2], x, y + 8);
+      canHit.push({ x: x, y: y, i: i });
+    });
+    for (let i = frames.length - 1; i >= 0; i--) {
+      const f = frames[i];
+      f.s += 1.4 / 60;
+      const tx = x0 + 120 + span * (f.target + 0.5);
+      let px, py;
+      if (!f.reply) {
+        if (f.s < 0.25) { px = rio.x; py = rio.y + 14 + (busY - rio.y - 14) * (f.s / 0.25); }
+        else if (f.s < 0.75) { px = rio.x + (tx - rio.x) * ((f.s - 0.25) / 0.5); py = busY; }
+        else { px = tx; py = busY + (h * 0.82 - 16 - busY) * ((f.s - 0.75) / 0.25); }
+      } else {
+        if (f.s < 0.25) { px = tx; py = h * 0.82 - 16 - (h * 0.82 - 16 - busY) * (f.s / 0.25); }
+        else if (f.s < 0.75) { px = tx + (rio.x - tx) * ((f.s - 0.25) / 0.5); py = busY; }
+        else { px = rio.x; py = busY - (busY - rio.y - 14) * ((f.s - 0.75) / 0.25); }
+      }
+      c.fillStyle = f.reply ? C.green : C.amber;
+      c.beginPath(); c.arc(px, py, 5, 0, Math.PI * 2); c.fill();
+      c.fillStyle = C.ink; c.font = '10px ' + Site.mono(); c.textAlign = 'left';
+      c.fillText(f.reply ? 'telemetry from ' + CTRL[f.target][0] : 'cmd → ID ' + CTRL[f.target][0], px + 8, py - 8);
+      if (f.s >= 1) {
+        frames.splice(i, 1);
+        if (!f.reply) frames.push({ target: f.target, s: 0, reply: true, arrived: t });
+      }
+    }
+    c.fillStyle = C.muted; c.font = '11px ' + Site.mono(); c.textAlign = 'left';
+    c.fillText('click a controller to send it a command', x0 + 120, h * 0.2);
+  }
+  canvasBus.el.addEventListener('click', function (e) {
+    const rect = canvasBus.el.getBoundingClientRect();
+    const x = e.clientX - rect.left, y = e.clientY - rect.top;
+    for (const hz of canHit) if (Math.abs(x - hz.x) < 36 && Math.abs(y - hz.y) < 18) { frames.push({ target: hz.i, s: 0, reply: false }); return; }
+  });
+  canvasBus.el.style.cursor = 'pointer';
+  const canLoop = Site.loop(canvasBus.el, function (dt, t) { drawCan(t); });
+  canLoop.start();
+})();
+</script>
 </body>
 </html>

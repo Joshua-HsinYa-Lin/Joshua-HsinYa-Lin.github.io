@@ -4,8 +4,24 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>How much of your weight does a helper carry? — Hsin Ya Lin</title>
+<meta name="description" content="Lean on a rod held by a helper and watch the knee unload and the ankle push sideways. Then compare a toy model against motion capture driven inverse dynamics.">
 <link rel="stylesheet" href="../../shared/site.css">
 <script src="../../shared/site.js"></script>
+<style>
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
+@media (max-width: 760px) { .split { grid-template-columns: 1fr; } }
+.cmp { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 0.6rem; margin-top: 0.7rem; }
+.cmp div { background: #0a0d12; border-radius: 8px; padding: 0.55rem 0.7rem; font-family: var(--mono); font-size: 0.8rem; color: var(--panel-muted); }
+.cmp div b { display: block; color: var(--panel-ink); font-size: 0.95rem; margin-top: 0.15rem; }
+.cmp div b.m { color: var(--amber); }
+.cmp div b.d { color: var(--green); }
+.tree { font-family: var(--mono); font-size: 0.82rem; line-height: 1.6; white-space: pre; overflow-x: auto; color: var(--panel-ink); }
+.tree .ok { color: var(--green); font-weight: 600; }
+.tree .no { color: var(--red); }
+.tree .dim { color: var(--panel-muted); }
+.mods { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0.3rem; font-family: var(--mono); font-size: 0.8rem; margin: 0.6rem 0; }
+.mods span { background: var(--bg2); border: 1px solid var(--rule); border-radius: 6px; padding: 0.2rem 0.5rem; color: var(--ink2); }
+</style>
 </head>
 <body>
 <header class="site-header" data-root="../../"></header>
@@ -13,28 +29,242 @@
 <div class="kicker">Purdue TRACE Laboratory · Undergraduate Research Assistant</div>
 <h1>How much of your weight does a helper carry?</h1>
 <div class="when">Jan 2026 to present · West Lafayette, Indiana</div>
-<p class="lede">Before a humanoid robot can help someone walk, you need to know what forces a human helper actually provides. I take motion capture of two people walking together, drive a musculoskeletal simulation with it, and pull the joint forces out.</p>
-<p class="note">The interactive version of this page is being built. What is here now is the summary and the figures.</p>
+<p class="lede">Before a humanoid robot can help someone walk, you need to know what a human helper actually provides: how much load comes off the knee, where it goes instead, and what the helper's wrist has to hold. I take motion capture of two people walking together, one leaning on a rod the other holds, drive a musculoskeletal simulation with it, and pull the joint forces out.</p>
+<div class="tags"><span>Biomechanics</span><span>Inverse dynamics</span><span>Motion capture</span><span>AnyBody</span><span>MATLAB</span><span>HDF5</span><span>Human robot interaction</span></div>
 
-<section class="sub">
-<h2>What I did</h2>
-<ul>
-<li>Processed 3D ViCon motion-capture data in MATLAB to drive AnyBody simulations of spatial kinematics and inverse dynamics for human-robot interaction systems.</li>
-<li>Extracted and analyzed per-joint forces and torques, comparing the assisted side against the unassisted side to quantify how much load a helper actually removes.</li>
-<li>Tested whether AnyBody's residual Hand of God force was masking failed ground reaction force prediction, reporting R² 0.03 and cosine similarity 0.58 as evidence against the hypothesis across 10+ force and moment channels.</li>
-<li>Consolidated a 16-module extraction, plotting and reporting workflow into a single pipeline with fallback path resolution that survives AnyBody changing its output layout.</li>
-</ul>
-<p><a href="https://github.com/Joshua-HsinYa-Lin/trace-lab-humanoid-walking-analysis" target="_blank" rel="noopener">Repository on GitHub</a>.</p>
-</section>
-
-<section class="sub">
-<h2>Figures</h2>
-<div class="figs">
-<figure><img src="grf-left-right.png" alt="Ground reaction force, left against right side" loading="lazy"><figcaption>Ground reaction force, left against right foot, across three axes.</figcaption></figure>
-<figure><img src="single-vs-interaction.png" alt="Single-person against two-person interaction forces" loading="lazy"><figcaption>Single person baseline against the two person interaction forces.</figcaption></figure>
+<section class="sub" id="lean">
+<h2>Lean on the rod</h2>
+<p>Stand on one leg and every newton of your weight goes through that knee, plus whatever your thigh muscles add to keep the knee from folding. Now push down on a rod someone else is holding. The knee load drops, the knee torque drops with it, and something new appears: to push on the rod sideways without falling over, your foot has to push the ground sideways too. Drag the sliders. The stick figure is a static toy; the numbers beside it are the measurement.</p>
+<div class="panel">
+  <div class="split">
+    <canvas id="figcv" aria-label="Front view stick figure with force arrows"></canvas>
+    <div>
+      <div class="controls" id="lctl" style="margin-top:0"></div>
+      <div class="cmp" id="cmp"></div>
+    </div>
+  </div>
+  <p class="hint">Toy model: single leg stance, static, knee load = ground reaction plus the quadriceps force needed to hold the flexion moment. Measured values come from AnyBody inverse dynamics driven by motion capture of the assisted walking task.</p>
 </div>
+<p>The measured story is coherent and the toy shows why. Shifting weight onto the hand cut the assisted knee's peak vertical load to about a third of the unassisted knee, 600 N against 1600 N, and its peak torque to about a third, 8 N&middot;m against 23 N&middot;m. The price was a large lateral force at the assisted ankle, 800 N, to keep from tipping toward the rod. On the other end of the rod the helper's wrist sustained 145 N vertically and 350 N laterally. A robot that wants to do this job has to supply those forces, at that wrist, without pulling the person over.</p>
 </section>
+
+<section class="sub" id="hog">
+<h2>Does the residual force hide a bad prediction?</h2>
+<p>An inverse dynamics model has to balance. When the measured motion and the modeled forces do not quite agree, AnyBody applies a residual, nicknamed the Hand of God, to close the books. If that residual is large and tracks the ground reaction force, it may be silently compensating for a ground reaction that the model got wrong, and every joint load downstream would be suspect. I tested that hypothesis directly with correlation statistics: R&sup2; of 0.03 and cosine similarity of 0.58 between the residual and the ground reaction force, across ten or more force and moment channels. The residual does not track the reaction. The hypothesis was rejected.</p>
+<div class="panel">
+  <div class="split">
+    <canvas id="sigcv" aria-label="Two synthetic signals"></canvas>
+    <canvas id="sctcv" aria-label="Scatter of the two signals"></canvas>
+  </div>
+  <div class="controls" id="hctl"></div>
+  <div id="hro"></div>
+  <p class="hint">Synthetic signals, not lab data: one is a walking style reaction force, the other is a residual that you can couple to it. Drag the coupling and watch what R² of 0.03 looks like next to 0.9.</p>
+</div>
+<p>The same analysis flagged something else: the interaction force magnitudes between the two people were implausibly large. Rather than report them as a finding, I treated them as a data collection problem and pointed at mixed up motion capture markers between the two subjects as the likely cause. The single person baseline, which shows near zero arm forces where the assisted model shows large spikes, confirmed that the trend is real even though the magnitudes are exaggerated.</p>
+</section>
+
+<section class="sub" id="pipeline">
+<h2>One pipeline instead of sixteen scripts</h2>
+<p>The analysis had grown into sixteen single purpose MATLAB scripts, eight for extraction and eight for plotting, run by hand in order. I consolidated them into one pipeline that runs end to end from a single entry point, skips missing datasets instead of crashing, and writes its reports to assigned folders. The part that mattered most is the path resolution. AnyBody's HDF5 export changes its internal layout between studies, so a hard coded path breaks silently on the next export. Each extraction module carries a list of candidate paths and tries them in order until one resolves, and handles both three by N and flat dataset shapes. Pick a layout and watch the resolver work.</p>
+<div class="panel">
+  <div class="btnrow" id="layrow" style="margin-top:0"></div>
+  <div class="tree" id="tree"></div>
+</div>
+<div class="mods" id="mods"></div>
+</section>
+
+<section class="sub" id="figs">
+<h2>From the lab</h2>
+<div class="figs">
+<figure><img src="grf-left-right.png" alt="Ground reaction force, left against right foot, three axes" loading="lazy"><figcaption>Ground reaction force on the left and right feet across three axes during the assisted walk. The vertical load hands off between feet each step; forward and lateral components show the push off and the sideways balance work.</figcaption></figure>
+<figure><img src="single-vs-interaction.png" alt="Single person baseline against two person interaction forces" loading="lazy"><figcaption>Single person baseline against the two person interaction forces.</figcaption></figure>
+</div>
+<p>The chain is ViCon motion capture, processed in MATLAB, driving AnyBody inverse dynamics, exported to HDF5, extracted and plotted in MATLAB. The application is human robot interaction, and alongside the simulation work I have been doing a comparative literature review of control systems and nonlinear control for the assistance problem. Code for the extraction and plotting pipeline is in the <a href="https://github.com/Joshua-HsinYa-Lin/trace-lab-humanoid-walking-analysis" target="_blank" rel="noopener">repository</a>; the subject data is not public.</p>
+</section>
+
+<div class="next"><a href="../../#projects">All projects</a><a href="../lna/">Next: a low noise amplifier</a></div>
 </main>
 <footer class="site-footer"></footer>
+
+<script>
+(function () {
+  const C = Site.colors;
+
+  /* Static toy: single leg stance, front view. */
+  const L = { m: 70, hand: 0.15, lat: 150, flex: 0.03, quad: 0.04 };
+  const lctl = document.getElementById('lctl');
+  Site.slider(lctl, { label: 'body mass', min: 45, max: 110, step: 1, value: 70, unit: 'kg', digits: 0, onInput: function (v) { L.m = v; update(); } });
+  Site.slider(lctl, { label: 'weight on hand', min: 0, max: 0.5, step: 0.01, value: 0.15, fmt: function (v) { return (v * 100).toFixed(0) + ' %'; }, onInput: function (v) { L.hand = v; update(); } });
+  Site.slider(lctl, { label: 'sideways push', min: 0, max: 400, step: 5, value: 150, unit: 'N', digits: 0, onInput: function (v) { L.lat = v; update(); } });
+  Site.slider(lctl, { label: 'knee flexion arm', min: 0.005, max: 0.08, step: 0.001, value: 0.03, fmt: function (v) { return (v * 100).toFixed(1) + ' cm'; }, onInput: function (v) { L.flex = v; update(); } });
+  const cmp = document.getElementById('cmp');
+  const figcv = Site.canvas(document.getElementById('figcv'), { aspect: 1.05 });
+  let out = {};
+  function compute() {
+    const W = L.m * 9.81;
+    const Fhv = W * L.hand;
+    const grf = W - Fhv;
+    const torque = grf * L.flex;
+    const quad = torque / L.quad;
+    const knee = grf + quad;
+    out = { W: W, Fhv: Fhv, grf: grf, torque: torque, knee: knee, ankleLat: L.lat, wristV: Fhv, wristL: L.lat };
+  }
+  function update() {
+    compute();
+    cmp.innerHTML =
+      '<div>knee vertical load<b class="m">' + out.knee.toFixed(0) + ' N model</b><b class="d">600 N assisted · 1600 N unassisted, measured</b></div>' +
+      '<div>knee torque<b class="m">' + out.torque.toFixed(1) + ' N·m model</b><b class="d">8 N·m assisted · 23 N·m unassisted, measured</b></div>' +
+      '<div>ankle lateral force<b class="m">' + out.ankleLat.toFixed(0) + ' N model</b><b class="d">800 N measured</b></div>' +
+      '<div>helper wrist<b class="m">' + out.wristV.toFixed(0) + ' N down · ' + out.wristL.toFixed(0) + ' N sideways, model</b><b class="d">145 N vertical · 350 N lateral, measured</b></div>';
+    drawFig();
+  }
+  function arrow(c, x0, y0, x1, y1, color, label) {
+    c.strokeStyle = color; c.fillStyle = color; c.lineWidth = 3;
+    c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+    const a = Math.atan2(y1 - y0, x1 - x0);
+    c.beginPath(); c.moveTo(x1, y1); c.lineTo(x1 - 10 * Math.cos(a - 0.4), y1 - 10 * Math.sin(a - 0.4)); c.lineTo(x1 - 10 * Math.cos(a + 0.4), y1 - 10 * Math.sin(a + 0.4)); c.closePath(); c.fill();
+    if (label) { c.font = '11px ' + Site.mono(); c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillText(label, x1 + 8, y1); }
+  }
+  function drawFig() {
+    const c = figcv.ctx, w = figcv.w, h = figcv.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const gy = h * 0.88;
+    c.strokeStyle = '#2e3a52'; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(20, gy); c.lineTo(w - 20, gy); c.stroke();
+    const s = h / 220;
+    const fx = w * 0.42;
+    const lean = L.lat / 400 * 12 * s;
+    const hip = [fx + lean, gy - 95 * s], knee = [fx + lean * 0.5, gy - 50 * s], ankle = [fx, gy - 6 * s];
+    const shoulder = [hip[0] + lean * 0.4, gy - 150 * s], head = [shoulder[0] + lean * 0.2, gy - 172 * s];
+    const handX = shoulder[0] + 58 * s, handY = gy - 108 * s;
+    const otherFoot = [fx - 26 * s, gy - 30 * s];
+    c.strokeStyle = C.ink; c.lineWidth = 6; c.lineCap = 'round';
+    function seg(a, b) { c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke(); }
+    seg(ankle, knee); seg(knee, hip); seg(hip, shoulder);
+    c.strokeStyle = '#6f7a8c';
+    seg(hip, otherFoot);
+    seg(shoulder, [shoulder[0] - 30 * s, gy - 110 * s]);
+    c.strokeStyle = C.ink;
+    seg(shoulder, [handX, handY]);
+    c.fillStyle = C.ink;
+    c.beginPath(); c.arc(head[0], head[1], 12 * s, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = C.amber; c.lineWidth = 4;
+    seg([handX, gy - 130 * s], [handX, gy - 60 * s]);
+    c.strokeStyle = '#6f7a8c'; c.lineWidth = 6;
+    seg([handX + 40 * s, gy - 100 * s], [handX + 4, gy - 122 * s]);
+    seg([handX + 40 * s, gy - 100 * s], [handX + 62 * s, gy - 150 * s]);
+    c.fillStyle = '#6f7a8c';
+    c.beginPath(); c.arc(handX + 70 * s, gy - 170 * s, 11 * s, 0, Math.PI * 2); c.fill();
+    c.fillStyle = C.muted; c.font = '10px ' + Site.mono(); c.textAlign = 'center';
+    c.fillText('helper', handX + 70 * s, gy - 190 * s);
+    const k = 0.045 * s;
+    arrow(c, ankle[0], gy + 2, ankle[0], gy + 2 - out.grf * k, C.green, 'ground ' + out.grf.toFixed(0) + ' N');
+    if (out.ankleLat > 0) arrow(c, ankle[0], gy - 6 * s, ankle[0] - out.ankleLat * k * 1.4, gy - 6 * s, C.cyan, '');
+    if (out.ankleLat > 0) { c.fillStyle = C.cyan; c.textAlign = 'right'; c.fillText('ankle ' + out.ankleLat.toFixed(0) + ' N', ankle[0] - out.ankleLat * k * 1.4 - 6, gy - 16 * s); }
+    if (out.Fhv > 0) arrow(c, handX, handY, handX, handY + out.Fhv * k, C.amber, out.Fhv.toFixed(0) + ' N on the rod');
+    if (out.ankleLat > 0) arrow(c, handX, handY - 8, handX + out.ankleLat * k * 1.4, handY - 8, C.pink, out.ankleLat.toFixed(0) + ' N sideways');
+    c.fillStyle = C.red; c.beginPath(); c.arc(knee[0], knee[1], 7, 0, Math.PI * 2); c.fill();
+    c.fillStyle = C.red; c.font = '11px ' + Site.mono(); c.textAlign = 'right';
+    c.fillText('knee ' + out.knee.toFixed(0) + ' N, ' + out.torque.toFixed(1) + ' N·m', knee[0] - 12, knee[1]);
+    c.fillStyle = C.muted; c.font = '11px ' + Site.mono(); c.textAlign = 'left';
+    c.fillText('front view · weight ' + out.W.toFixed(0) + ' N', 14, 16);
+  }
+  update();
+  figcv.onresize = drawFig;
+
+  /* R squared intuition */
+  const H = { couple: 0.1, noise: 1.0 };
+  const rng = Site.rng(11);
+  const NPTS = 240;
+  const base = [], nz = [];
+  for (let i = 0; i < NPTS; i++) {
+    const ph = i / NPTS * Math.PI * 6;
+    const hump = Math.max(0, Math.sin(ph));
+    base.push(700 * Math.pow(hump, 0.6));
+    nz.push((rng() - 0.5) * 2);
+  }
+  let smooth = nz.slice();
+  for (let k = 0; k < 6; k++) smooth = smooth.map(function (v, i) { return (smooth[Math.max(0, i - 1)] + v + smooth[Math.min(NPTS - 1, i + 1)]) / 3; });
+  function residual() {
+    const out = [];
+    for (let i = 0; i < NPTS; i++) out.push(H.couple * 0.12 * base[i] + (1 - H.couple) * 40 * smooth[i] * H.noise + 20);
+    return out;
+  }
+  function stats(x, y) {
+    const n = x.length;
+    let mx = 0, my = 0;
+    for (let i = 0; i < n; i++) { mx += x[i]; my += y[i]; }
+    mx /= n; my /= n;
+    let sxy = 0, sxx = 0, syy = 0, dot = 0, nx = 0, ny = 0;
+    for (let i = 0; i < n; i++) {
+      sxy += (x[i] - mx) * (y[i] - my); sxx += (x[i] - mx) * (x[i] - mx); syy += (y[i] - my) * (y[i] - my);
+      dot += x[i] * y[i]; nx += x[i] * x[i]; ny += y[i] * y[i];
+    }
+    const r = sxy / Math.sqrt(sxx * syy);
+    return { r2: r * r, cos: dot / Math.sqrt(nx * ny) };
+  }
+  const hctl = document.getElementById('hctl');
+  Site.slider(hctl, { label: 'coupling', min: 0, max: 1, step: 0.01, value: 0.1, wide: true, onInput: function (v) { H.couple = v; drawH(); } });
+  const hro = Site.readouts(document.getElementById('hro'), [{ key: 'r2', label: 'R² synthetic', color: 'amber' }, { key: 'cos', label: 'cosine similarity synthetic', color: 'cyan' }, { key: 'lab', label: 'measured in the lab', color: 'green' }]);
+  const sigcv = Site.canvas(document.getElementById('sigcv'), { aspect: 0.75 });
+  const sctcv = Site.canvas(document.getElementById('sctcv'), { aspect: 0.75 });
+  function drawH() {
+    const res = residual();
+    const st = stats(base, res);
+    let c = sigcv.ctx;
+    c.fillStyle = C.panel; c.fillRect(0, 0, sigcv.w, sigcv.h);
+    const p = new Site.Plot(c, { x: [0, NPTS], y: [-60, 760], box: { x: 44, y: 22, w: sigcv.w - 56, h: sigcv.h - 58 }, title: 'two signals over three steps', xlabel: 'samples' });
+    p.axes();
+    p.line({ xs: base.map(function (_, i) { return i; }), ys: base }, { color: C.green, width: 2 });
+    p.line({ xs: res.map(function (_, i) { return i; }), ys: res }, { color: C.amber, width: 2 });
+    p.legend([{ label: 'reaction force style signal', color: C.green }, { label: 'residual style signal', color: C.amber }]);
+    c = sctcv.ctx;
+    c.fillStyle = C.panel; c.fillRect(0, 0, sctcv.w, sctcv.h);
+    const q = new Site.Plot(c, { x: [0, 760], y: [-60, 140], box: { x: 44, y: 22, w: sctcv.w - 56, h: sctcv.h - 58 }, title: 'residual against reaction, sample by sample', xlabel: 'reaction', ylabel: 'residual' });
+    q.axes();
+    for (let i = 0; i < NPTS; i++) q.dot(base[i], res[i], { color: 'rgba(255,182,72,0.7)', r: 2.5 });
+    hro.set('r2', st.r2.toFixed(3));
+    hro.set('cos', st.cos.toFixed(3));
+    hro.set('lab', 'R² 0.03, cosine 0.58');
+  }
+  drawH();
+  sigcv.onresize = drawH;
+  sctcv.onresize = drawH;
+
+  /* Fallback path resolution */
+  const LAYOUTS = {
+    a: { name: 'study A export', paths: ['/Output/Model/Environment/GRF_Left/Fz', '/Output/Model/BodyModel/Right/Leg/Knee/Fz'] },
+    b: { name: 'study B export', paths: ['/Output/Model/EnvironmentModel/ForcePlates/Left/Fz', '/Output/Model/BodyModel/Right/Leg/Jnt/Knee/Fz'] },
+    c: { name: 'renamed model', paths: ['/Output/AssistedWalk/GroundReaction/Left/Fz', '/Output/AssistedWalk/Right/Knee/Fz'] }
+  };
+  const CANDIDATES = [
+    ['plate_paths', ['/Output/Model/Environment/GRF_Left/Fz', '/Output/Model/EnvironmentModel/ForcePlates/Left/Fz', '/Output/AssistedWalk/GroundReaction/Left/Fz']],
+    ['leg_paths', ['/Output/Model/BodyModel/Right/Leg/Knee/Fz', '/Output/Model/BodyModel/Right/Leg/Jnt/Knee/Fz', '/Output/AssistedWalk/Right/Knee/Fz']]
+  ];
+  let layout = 'a';
+  Site.select(document.getElementById('layrow'), { value: 'a', options: [{ value: 'a', label: LAYOUTS.a.name }, { value: 'b', label: LAYOUTS.b.name }, { value: 'c', label: LAYOUTS.c.name }], onChange: function (v) { layout = v; drawTree(); } });
+  function drawTree() {
+    const have = LAYOUTS[layout].paths;
+    let s = '<span class="dim">file: ' + LAYOUTS[layout].name + '.h5</span>\n';
+    have.forEach(function (p) { s += '  ' + p + '  <span class="dim">(3×N)</span>\n'; });
+    s += '\n';
+    CANDIDATES.forEach(function (cnd) {
+      s += '<span class="dim">resolve ' + cnd[0] + ':</span>\n';
+      let found = false;
+      cnd[1].forEach(function (p) {
+        if (found) { s += '  <span class="dim">skip   ' + p + '</span>\n'; return; }
+        if (have.indexOf(p) >= 0) { s += '  <span class="ok">found  ' + p + '</span>\n'; found = true; }
+        else s += '  <span class="no">miss   ' + p + '</span>\n';
+      });
+      if (!found) s += '  <span class="no">none resolved: dataset skipped, run continues</span>\n';
+    });
+    document.getElementById('tree').innerHTML = s;
+  }
+  drawTree();
+  const mods = ['run_GRF', 'run_GRF_single', 'run_analysis', 'run_angles', 'run_follower', 'run_hand', 'run_single_hand', 'run_single_leg', 'plot_GRF', 'plot_GRFvsHOG', 'plot_angles', 'plot_follower', 'plot_hand', 'plot_results', 'plot_single', 'plot_single_GRFandLeg'];
+  document.getElementById('mods').innerHTML = mods.map(function (m) { return '<span>' + m + '</span>'; }).join('');
+})();
+</script>
 </body>
 </html>

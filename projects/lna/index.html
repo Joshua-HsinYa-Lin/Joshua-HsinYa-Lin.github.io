@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>A low noise amplifier — Hsin Ya Lin</title>
+<meta name="description" content="Purdue IEEE Microwave is designing a low noise amplifier this semester. Until there is a design to show, here is why the first stage decides the noise of the whole receiver.">
 <link rel="stylesheet" href="../../shared/site.css">
 <script src="../../shared/site.js"></script>
 </head>
@@ -13,9 +14,91 @@
 <div class="kicker">Purdue IEEE Microwave · starting Fall 2026</div>
 <h1>A low noise amplifier</h1>
 <div class="when">Fall 2026 · in progress</div>
-<p class="lede">The Purdue IEEE Microwave chapter is designing a low noise amplifier this semester and I am on it, working in Altium Designer. There is no design to show yet, so this page is honest about its tense: it explains the problem and will fill in as the work exists.</p>
-<p class="note">The interactive version of this page is being built.</p>
+<p class="lede">The Purdue IEEE Microwave chapter is designing a low noise amplifier this semester and I am on it, working in Altium Designer. There is no design to show yet, so this page is honest about its tense. It explains the problem the amplifier solves, and it will fill in with the matching network, the layout and the measured noise figure as they exist.</p>
+<div class="tags"><span>RF</span><span>Noise figure</span><span>Altium Designer</span><span>upcoming</span></div>
+
+<section class="sub" id="friis">
+<h2>Why the first stage decides the noise</h2>
+<p>Every stage in a receiver adds noise. Friis' formula says how the stages combine: the total noise factor is the first stage's noise factor, plus the second stage's excess noise divided by the first stage's gain, plus the third stage's excess noise divided by the first two gains, and so on. Each later stage's contribution is shrunk by all the gain before it. So the stage that sits right after the antenna sets the floor for the whole chain, and it has to be both quiet and have enough gain to make everything after it not matter. That is the job of a low noise amplifier. Move the sliders and watch the contributions.</p>
+<div class="panel">
+  <canvas id="fr" aria-label="Noise contribution by stage"></canvas>
+  <div class="controls" id="frctl"></div>
+  <div class="btnrow" id="frrow"></div>
+  <div id="frro"></div>
+  <p class="hint">Noise figure and gain are in dB; the formula works in linear noise factor and linear gain, and the page converts. Try putting a lossy filter ahead of the amplifier: loss is a stage with negative gain and a noise figure equal to its loss.</p>
+</div>
+<p>The formula is also why the amplifier's own design is a tension. Matching the transistor's input for the lowest noise and matching it for the highest gain are two different impedances, and the design is the choice of where between them to sit, plus keeping the thing stable at every frequency it can amplify, not only the one you want. Those are the results this page will carry when they exist: the matching network as designed, the noise figure as measured against it, and the difference.</p>
+</section>
+
+<section class="sub" id="plan">
+<h2>Where this fits</h2>
+<p>This is the first block of an RF thread I have been building toward: link budgets, transmission line behavior on a PCB, and antenna simulation, in the same chapter's radar work. The amplifier is the first stage after the antenna, so its noise figure goes straight into the link budget. Until there is a board and a measurement, nothing here is a claim.</p>
+</section>
+
+<div class="next"><a href="../../#projects">All projects</a><a href="../socet/">Next: a matrix coprocessor on an FPGA</a></div>
 </main>
 <footer class="site-footer"></footer>
+
+<script>
+(function () {
+  const C = Site.colors;
+  const ST = [
+    { name: 'stage 1', nf: 1.0, g: 15 },
+    { name: 'stage 2', nf: 6.0, g: 10 },
+    { name: 'stage 3', nf: 10.0, g: 20 }
+  ];
+  const ctl = document.getElementById('frctl');
+  const sl = [];
+  ST.forEach(function (s, i) {
+    sl.push([
+      Site.slider(ctl, { label: s.name + ' NF', min: 0.2, max: 15, step: 0.1, value: s.nf, unit: 'dB', digits: 1, onInput: function (v) { s.nf = v; draw(); } }),
+      Site.slider(ctl, { label: s.name + ' gain', min: -10, max: 30, step: 0.5, value: s.g, unit: 'dB', digits: 1, onInput: function (v) { s.g = v; draw(); } })
+    ]);
+  });
+  function setAll(vals) { vals.forEach(function (v, i) { ST[i].nf = v[0]; ST[i].g = v[1]; sl[i][0].value = v[0]; sl[i][1].value = v[1]; }); draw(); }
+  const row = document.getElementById('frrow');
+  Site.button(row, { label: 'LNA first', primary: true, onClick: function () { setAll([[1.0, 15], [6.0, 10], [10.0, 20]]); } });
+  Site.button(row, { label: 'Lossy filter first', onClick: function () { setAll([[3.0, -3], [1.0, 15], [10.0, 20]]); } });
+  Site.button(row, { label: 'Quiet but weak LNA', onClick: function () { setAll([[0.6, 4], [6.0, 10], [10.0, 20]]); } });
+  const ro = Site.readouts(document.getElementById('frro'), [{ key: 'tot', label: 'total noise figure', color: 'amber' }, { key: 'c', label: 'share from stage 1 · 2 · 3', color: 'cyan' }]);
+  const cv = Site.canvas(document.getElementById('fr'), { aspect: 0.42 });
+  function lin(db) { return Math.pow(10, db / 10); }
+  function draw() {
+    const F = ST.map(function (s) { return lin(s.nf); });
+    const G = ST.map(function (s) { return lin(s.g); });
+    const contrib = [F[0], (F[1] - 1) / G[0], (F[2] - 1) / (G[0] * G[1])];
+    const total = contrib[0] + contrib[1] + contrib[2];
+    const totDb = 10 * Math.log10(total);
+    const c = cv.ctx, w = cv.w, h = cv.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const p = new Site.Plot(c, { x: [0, 3], y: [0, Math.max(2, total * 1.15)], box: { x: 50, y: 22, w: w - 62, h: h - 58 }, title: 'noise factor contribution by stage (linear)', xticks: [] });
+    p.axes();
+    const cols = [C.amber, C.cyan, C.pink];
+    let acc = 0;
+    contrib.forEach(function (v, i) {
+      const x0 = p.px(i + 0.2), x1 = p.px(i + 0.8);
+      c.fillStyle = cols[i];
+      c.fillRect(x0, p.py(v), x1 - x0, p.py(0) - p.py(v));
+      c.fillStyle = C.ink;
+      c.font = '600 11px ' + Site.mono();
+      c.textAlign = 'center';
+      c.textBaseline = 'bottom';
+      c.fillText(v.toFixed(3), (x0 + x1) / 2, p.py(v) - 3);
+      c.fillStyle = C.muted;
+      c.font = '10px ' + Site.mono();
+      c.textBaseline = 'top';
+      c.fillText(ST[i].name + '  NF ' + ST[i].nf.toFixed(1) + ' dB, G ' + ST[i].g.toFixed(1) + ' dB', (x0 + x1) / 2, p.py(0) + 5);
+      acc += v;
+    });
+    p.hline(total, { color: C.green, label: 'total F = ' + total.toFixed(3) + '  →  NF ' + totDb.toFixed(2) + ' dB' });
+    ro.set('tot', totDb.toFixed(2) + ' dB');
+    ro.set('c', contrib.map(function (v) { return (v / total * 100).toFixed(0) + '%'; }).join(' · '));
+    void acc;
+  }
+  draw();
+  cv.onresize = draw;
+})();
+</script>
 </body>
 </html>

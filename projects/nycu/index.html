@@ -4,8 +4,30 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Decoding bits that moved — Hsin Ya Lin</title>
+<meta name="description" content="Corrupt a codeword with insertions and deletions, compare position scoring against alignment, watch the edit distance table fill, and see why a Transformer was pointed at the problem.">
 <link rel="stylesheet" href="../../shared/site.css">
 <script src="../../shared/site.js"></script>
+<style>
+.bitrows { font-family: var(--mono); font-size: 0.92rem; line-height: 1.55; overflow-x: auto; white-space: pre; color: var(--panel-ink); }
+.bitrows .lab { color: var(--panel-muted); display: inline-block; width: 7.5em; }
+.bitrows .m { color: #5c6b82; }
+.bitrows .x { color: var(--red); font-weight: 700; }
+.bitrows .ins { color: var(--green); font-weight: 700; }
+.bitrows .del { color: var(--red); font-weight: 700; }
+.bitrows .sub { color: var(--amber); font-weight: 700; }
+.bitrows .gap { color: #3a4661; }
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
+@media (max-width: 760px) { .split { grid-template-columns: 1fr; } }
+.models { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.7rem; margin: 1rem 0; }
+.model { background: var(--bg2); border: 1px solid var(--rule); border-radius: 10px; padding: 0.7rem 0.85rem; font-size: 0.92rem; }
+.model b { display: block; margin-bottom: 0.2rem; }
+.model span { display: block; color: var(--muted); font-family: var(--mono); font-size: 0.76rem; margin-bottom: 0.3rem; }
+.model em { color: var(--accent); font-style: normal; }
+.dpbits { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; font-family: var(--mono); font-size: 0.85rem; margin: 0.4rem 0; }
+.dpbits .lab { color: var(--panel-muted); width: 5em; }
+.dpbits button { width: 26px; height: 26px; border-radius: 5px; border: 1px solid #3a4661; background: #151b26; color: #fff; font: 700 13px var(--mono); cursor: pointer; padding: 0; }
+.dpbits button:hover { border-color: var(--amber); }
+</style>
 </head>
 <body>
 <header class="site-header" data-root="../../"></header>
@@ -13,19 +35,447 @@
 <div class="kicker">NYCU Institute of Communications · Software Research Intern</div>
 <h1>Decoding bits that moved</h1>
 <div class="when">May 2026 to Jul 2026 · Hsinchu, Taiwan</div>
-<p class="lede">Classical error correction assumes every bit stays in its slot. Delete one bit and every bit after it shifts, so a decoder that compares position by position sees dozens of errors where there was one. I benchmarked machine learning decoders against that channel.</p>
-<p class="note">The interactive version of this page is being built. What is here now is the summary.</p>
+<p class="lede">Classical error correction assumes every bit stays in its slot: bit 37 arrives as bit 37, possibly flipped. Delete one bit and every bit after it shifts, so a decoder comparing position by position sees dozens of errors where there was one. I benchmarked machine learning decoders against that channel, and the most useful thing I built was the measurement that showed how bad it is.</p>
+<div class="tags"><span>Error correction coding</span><span>Insertion deletion channel</span><span>Transformers</span><span>PyTorch</span><span>Levenshtein alignment</span><span>CTC</span></div>
 
-<section class="sub">
-<h2>What I did</h2>
-<ul>
-<li>Applied Transformer architectures to error-correction coding over synchronization-error channels, where an insertion or deletion shifts every following bit and classical decoders lose the position assumption they rest on.</li>
-<li>Built three designs in PyTorch on CUDA: an autoregressive encoder-decoder, a Siamese encoder learning a 256-dimensional space where Euclidean distance tracks edit distance, and a CTC head decoding bits directly.</li>
-<li>Cut edit-distance estimation error to 2.09 RMSE against 2.62 and 2.91 for the CGK and CNN-ED baselines, with BCJR as the classical reference, across 1M binary codewords.</li>
-</ul>
-<p><a href="https://github.com/Joshua-HsinYa-Lin/error-correction-coding-with-transformer" target="_blank" rel="noopener">Repository and engineering notebook on GitHub</a>.</p>
+<section class="sub" id="channel">
+<h2>Break a codeword</h2>
+<p>Send a random codeword through a channel that inserts, deletes and flips bits. Then score what arrived two ways. Position by position, the way a conventional bit error rate is computed, every bit after the first insertion or deletion is compared against the wrong neighbor. By alignment, the way an edit distance is computed, the received word is lined up against the sent one and only the actual edits count.</p>
+<div class="panel">
+  <div class="controls" id="chctl"></div>
+  <div class="btnrow" id="chrow"></div>
+  <div class="bitrows" id="bitrows"></div>
+  <div id="chro"></div>
+  <p class="hint">Green plus is an insertion, red minus a deletion, amber a flipped bit. Run a thousand trials to see the averages at these settings.</p>
+</div>
+<p>On the project's dataset of one million sequences, the sent words were 100 bits and the received words ran from 89 to 115. Only about 13% kept their length at all. Among the pairs that did, position scoring reported about 30 mismatches for a true edit distance of about 8. That gap is the whole argument for alignment based losses over positional ones, and it is why the models below were pointed at edit distance rather than at bits.</p>
 </section>
+
+<section class="sub" id="dp">
+<h2>Watch the edit distance table fill</h2>
+<p>Edit distance is computed with a table: cell (i, j) holds the cheapest way to turn the first i bits of one word into the first j bits of the other, built from its three neighbors. Click the bits to change them and watch the table fill and the alignment trace back from the corner.</p>
+<div class="panel">
+  <div class="dpbits" id="dpa"></div>
+  <div class="dpbits" id="dpb"></div>
+  <canvas id="dpcan" aria-label="Edit distance dynamic programming table"></canvas>
+  <div class="btnrow" id="dprow"></div>
+</div>
+</section>
+
+<section class="sub" id="models">
+<h2>Three models, in the order they were tried</h2>
+<div class="models">
+  <div class="model"><b>Autoregressive encoder decoder</b><span>phase one</span>Generates the decoded bits one at a time. Produces a sequence you can score every way, and on a shifting channel a positional loss drowns. Pearson 0.8589 and Spearman 0.8557 against true edit distance, BER 0.3716.</div>
+  <div class="model"><b>Siamese encoder</b><span>phase two</span>Learns a 256 dimensional space in which Euclidean distance between two embedded words tracks their edit distance. Trained with triplet loss. <em>RMSE 2.092 and MAE 1.670</em>, the lowest error of any learned model tested, beating both alignment baselines. Gives distances, not bits.</div>
+  <div class="model"><b>CTC head</b><span>phase three</span>Meant to bridge the two: decode bits directly with a loss that is indifferent to alignment. Did not converge. Written up as a diagnosed failure with a named fix, below.</div>
+</div>
+<div class="panel">
+  <canvas id="bars" aria-label="RMSE of edit distance estimation against baselines"></canvas>
+</div>
+<p>The honest footnote on the Siamese result: its rank correlation fell to roughly 0.45, below the convolutional and alignment baselines. Triplet loss pushes each pair past a fixed margin, which tightens local ordering and absolute error without ever asking the whole severity scale to line up in rank. Good distances, weaker ranking. Knowing why is worth more than the win.</p>
+</section>
+
+<section class="sub" id="triplet">
+<h2>What triplet loss does</h2>
+<p>Each training example is three words: an anchor, a positive that is a light corruption of it, and a negative that is a heavy one. The loss is zero when the negative sits farther from the anchor than the positive by at least a margin, and otherwise it pulls the positive in and pushes the negative out. Click anywhere to drop a new negative and watch.</p>
+<div class="panel">
+  <canvas id="tri" aria-label="Triplet loss animation"></canvas>
+  <div class="controls" id="trictl"></div>
+  <div class="btnrow" id="trirow"></div>
+  <div id="triro"></div>
+  <p class="hint">Dashed ring is the margin boundary: the negative must end up outside it. Recorded on the real model: embedding 256, 8 heads, 4 layers, margin 1.0, 30 epochs, triplet accuracy 0.7238.</p>
+</div>
+</section>
+
+<section class="sub" id="ctc">
+<h2>The failure, diagnosed</h2>
+<p>The CTC model's loss moved from 0.7388 to 0.6856 over thirty epochs and stopped. That number is not random: ln 2 is 0.6931, the loss of a model that predicts a fair coin for every bit and ignores its input. Its bit error rate was 0.5859, seven times worse than copying the input unchanged, and its block error rate was 1.0.</p>
+<div class="panel">
+  <div class="split">
+    <canvas id="ctcplot" aria-label="CTC loss against the ln 2 floor"></canvas>
+    <canvas id="berbars" aria-label="Bit error rate of three strategies"></canvas>
+  </div>
+  <p class="hint">Left: the two recorded loss values against ln 2. Right: what three strategies score on this page's channel at the current slider settings, next to the recorded CTC result.</p>
+</div>
+<p>The deciding test was small: 128 samples, learning rate raised tenfold, gradient clipping added, and the model asked to simply memorize them. A healthy network drives a set that small to near zero error. This one stuck at BER 0.5022, which rules out the optimizer and points at the architecture. The diagnosis: the CTC lattice needs blanks between repeated symbols, and binary codewords are full of repeats, so the encoder output was upsampled two to one before the loss. Nearest neighbor upsampling duplicates each frame, and two identical adjacent vectors cannot express two different decisions, so the representable alignments were far fewer than the lattice length implied. The named fix is a learned upsampling layer.</p>
+</section>
+
+<section class="sub" id="scale">
+<h2>Scale and tools</h2>
+<div class="stats">
+  <div class="stat"><b>1,000,000</b><span>sequences in the dataset</span></div>
+  <div class="stat"><b>89 to 115</b><span>received length for 100 sent bits</span></div>
+  <div class="stat"><b>30 vs 8</b><span>positional mismatches against true edits</span></div>
+  <div class="stat"><b>2.092</b><span>Siamese RMSE, against 2.622 and 2.906</span></div>
+</div>
+<p>Python and PyTorch on CUDA, HDF5 for the dataset, remote Linux training over SSH and tmux. Baselines: BCJR as the classical maximum a posteriori reference, CGK and CNN-ED for edit distance, GRU and REBIND. The engineering notebook that records all of this as it happened is in the <a href="https://github.com/Joshua-HsinYa-Lin/error-correction-coding-with-transformer" target="_blank" rel="noopener">repository</a>. The findings apply directly to error correction blocks in communications ICs and DSPs, which is where I would like to take them.</p>
+</section>
+
+<div class="next"><a href="../../#projects">All projects</a><a href="../frc8020/">Next: wiring a robot so a fault finds itself</a></div>
 </main>
 <footer class="site-footer"></footer>
+
+<script>
+(function () {
+  const C = Site.colors;
+
+  /* Channel */
+  const CH = { L: 40, pi: 0.03, pd: 0.03, ps: 0.02 };
+  let sent = [];
+  let recv = [];
+  function randomBits(n) { const a = []; for (let i = 0; i < n; i++) a.push(Math.random() < 0.5 ? 0 : 1); return a; }
+  function corrupt(bits) {
+    const out = [];
+    for (let i = 0; i < bits.length; i++) {
+      if (Math.random() < CH.pd) continue;
+      let b = bits[i];
+      if (Math.random() < CH.ps) b ^= 1;
+      out.push(b);
+      if (Math.random() < CH.pi) out.push(Math.random() < 0.5 ? 0 : 1);
+    }
+    return out;
+  }
+  function levenshtein(a, b) {
+    const m = a.length, n = b.length;
+    const D = [];
+    for (let i = 0; i <= m; i++) { D.push(new Int16Array(n + 1)); D[i][0] = i; }
+    for (let j = 0; j <= n; j++) D[0][j] = j;
+    for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) {
+      const c = a[i - 1] === b[j - 1] ? 0 : 1;
+      D[i][j] = Math.min(D[i - 1][j] + 1, D[i][j - 1] + 1, D[i - 1][j - 1] + c);
+    }
+    const ops = [];
+    let i = m, j = n;
+    while (i > 0 || j > 0) {
+      if (i > 0 && j > 0 && D[i][j] === D[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)) { ops.push([a[i - 1] === b[j - 1] ? 'm' : 's', a[i - 1], b[j - 1]]); i--; j--; }
+      else if (i > 0 && D[i][j] === D[i - 1][j] + 1) { ops.push(['d', a[i - 1], null]); i--; }
+      else { ops.push(['i', null, b[j - 1]]); j--; }
+    }
+    ops.reverse();
+    return { dist: D[m][n], ops: ops, D: D };
+  }
+  function positional(a, b) {
+    let mism = 0;
+    const n = Math.max(a.length, b.length);
+    for (let i = 0; i < n; i++) if (a[i] !== b[i]) mism++;
+    return mism;
+  }
+  const chctl = document.getElementById('chctl');
+  Site.slider(chctl, { label: 'length', min: 8, max: 100, step: 1, value: 40, digits: 0, unit: 'bits', onInput: function (v) { CH.L = v; newWord(); } });
+  Site.slider(chctl, { label: 'insert', min: 0, max: 0.15, step: 0.005, value: 0.03, fmt: function (v) { return (v * 100).toFixed(1) + ' %'; }, onInput: function (v) { CH.pi = v; resend(); } });
+  Site.slider(chctl, { label: 'delete', min: 0, max: 0.15, step: 0.005, value: 0.03, fmt: function (v) { return (v * 100).toFixed(1) + ' %'; }, onInput: function (v) { CH.pd = v; resend(); } });
+  Site.slider(chctl, { label: 'flip', min: 0, max: 0.15, step: 0.005, value: 0.02, fmt: function (v) { return (v * 100).toFixed(1) + ' %'; }, onInput: function (v) { CH.ps = v; resend(); } });
+  const chrow = document.getElementById('chrow');
+  Site.button(chrow, { label: 'New codeword', onClick: newWord });
+  Site.button(chrow, { label: 'Send it again', primary: true, onClick: resend });
+  Site.button(chrow, { label: 'Run 1000 trials', onClick: trials });
+  const chro = Site.readouts(document.getElementById('chro'), [
+    { key: 'pos', label: 'positional mismatches', color: 'red' }, { key: 'ed', label: 'true edits', color: 'green' },
+    { key: 'len', label: 'received length' }, { key: 'avg', label: '1000 trials', color: 'amber' }
+  ]);
+  function esc(b) { return b === null ? '<span class="gap">·</span>' : String(b); }
+  function render() {
+    const lv = levenshtein(sent, recv);
+    const pos = positional(sent, recv);
+    const per = 50;
+    let html = '';
+    const n = Math.max(sent.length, recv.length);
+    for (let s = 0; s < n; s += per) {
+      html += '<span class="lab">sent</span>';
+      for (let i = s; i < Math.min(n, s + per); i++) html += i < sent.length ? String(sent[i]) : '<span class="gap"> </span>';
+      html += '\n<span class="lab">received</span>';
+      for (let i = s; i < Math.min(n, s + per); i++) {
+        if (i >= recv.length) { html += '<span class="gap">·</span>'; continue; }
+        html += (sent[i] === recv[i]) ? '<span class="m">' + recv[i] + '</span>' : '<span class="x">' + recv[i] + '</span>';
+      }
+      html += '\n\n';
+    }
+    html += '<span class="lab">aligned</span>';
+    const ops = lv.ops;
+    let line1 = '', line2 = '', line3 = '';
+    ops.forEach(function (o) {
+      if (o[0] === 'm') { line1 += esc(o[1]); line2 += '<span class="m">' + esc(o[2]) + '</span>'; line3 += ' '; }
+      else if (o[0] === 's') { line1 += esc(o[1]); line2 += '<span class="sub">' + esc(o[2]) + '</span>'; line3 += '<span class="sub">~</span>'; }
+      else if (o[0] === 'd') { line1 += esc(o[1]); line2 += '<span class="gap">·</span>'; line3 += '<span class="del">−</span>'; }
+      else { line1 += '<span class="gap">·</span>'; line2 += '<span class="ins">' + esc(o[2]) + '</span>'; line3 += '<span class="ins">+</span>'; }
+    });
+    html += line1 + '\n<span class="lab"></span>' + line2 + '\n<span class="lab">edits</span>' + line3;
+    document.getElementById('bitrows').innerHTML = html;
+    chro.set('pos', pos + ' of ' + sent.length);
+    chro.set('ed', String(lv.dist));
+    chro.set('len', recv.length + ' (sent ' + sent.length + ')');
+    lastCopyBer = pos / sent.length;
+    if (berReady) drawBer();
+  }
+  let berReady = false;
+  function newWord() { sent = randomBits(CH.L); recv = corrupt(sent); render(); }
+  function resend() { recv = corrupt(sent); render(); }
+  let lastCopyBer = 0.08;
+  let trialStats = null;
+  function trials() {
+    let pos = 0, ed = 0, same = 0, ber = 0;
+    const N = 1000;
+    for (let k = 0; k < N; k++) {
+      const a = randomBits(CH.L);
+      const b = corrupt(a);
+      const p = positional(a, b);
+      pos += p;
+      ed += levenshtein(a, b).dist;
+      if (a.length === b.length) same++;
+      ber += p / a.length;
+    }
+    trialStats = { pos: pos / N, ed: ed / N, same: same / N, ber: ber / N };
+    chro.set('avg', (pos / N).toFixed(1) + ' mismatches vs ' + (ed / N).toFixed(1) + ' edits, ' + (same / N * 100).toFixed(0) + '% kept length, copy BER ' + (ber / N).toFixed(3));
+    drawBer();
+  }
+  newWord();
+
+  /* DP table */
+  let A = [1, 0, 1, 1, 0, 0, 1, 0];
+  let Bw = [1, 0, 1, 0, 0, 1, 1];
+  const dpa = document.getElementById('dpa'), dpb = document.getElementById('dpb');
+  function bitButtons(el, arr, label) {
+    el.innerHTML = '<span class="lab">' + label + '</span>';
+    arr.forEach(function (b, i) {
+      const bt = document.createElement('button');
+      bt.type = 'button';
+      bt.textContent = String(b);
+      bt.addEventListener('click', function () { arr[i] ^= 1; bt.textContent = String(arr[i]); startDp(); });
+      el.appendChild(bt);
+    });
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.textContent = '+';
+    add.title = 'append a bit';
+    add.addEventListener('click', function () { if (arr.length < 12) { arr.push(Math.random() < 0.5 ? 0 : 1); bitButtons(el, arr, label); startDp(); } });
+    el.appendChild(add);
+    const rem = document.createElement('button');
+    rem.type = 'button';
+    rem.textContent = '−';
+    rem.title = 'drop the last bit';
+    rem.addEventListener('click', function () { if (arr.length > 2) { arr.pop(); bitButtons(el, arr, label); startDp(); } });
+    el.appendChild(rem);
+  }
+  bitButtons(dpa, A, 'word A');
+  bitButtons(dpb, Bw, 'word B');
+  const dpcan = Site.canvas(document.getElementById('dpcan'), { aspect: 0.42 });
+  let dpState = null;
+  function startDp() {
+    const lv = levenshtein(A, Bw);
+    const path = [];
+    let i = A.length, j = Bw.length;
+    path.push([i, j]);
+    lv.ops.slice().reverse().forEach(function (o) {
+      if (o[0] === 'm' || o[0] === 's') { i--; j--; } else if (o[0] === 'd') i--; else j--;
+      path.push([i, j]);
+    });
+    dpState = { D: lv.D, filled: 0, total: (A.length + 1) * (Bw.length + 1), path: path, pathShown: 0, done: false };
+  }
+  function drawDp() {
+    const c = dpcan.ctx, w = dpcan.w, h = dpcan.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    if (!dpState) return;
+    const m = A.length, n = Bw.length;
+    const cell = Math.min((w - 40) / (n + 2), (h - 30) / (m + 2), 40);
+    const x0 = 30 + cell, y0 = 20 + cell;
+    c.font = '600 ' + Math.max(10, cell * 0.42) + 'px ' + Site.mono();
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    for (let j = 0; j < n; j++) { c.fillStyle = C.cyan; c.fillText(String(Bw[j]), x0 + (j + 1) * cell + cell / 2, y0 - cell / 2); }
+    for (let i = 0; i < m; i++) { c.fillStyle = C.amber; c.fillText(String(A[i]), x0 - cell / 2, y0 + (i + 1) * cell + cell / 2); }
+    c.fillStyle = C.muted;
+    c.font = '10px ' + Site.mono();
+    c.fillText('B →', x0 + cell / 2, y0 - cell / 2);
+    c.fillText('A ↓', x0 - cell / 2, y0 + cell / 2);
+    c.font = '600 ' + Math.max(10, cell * 0.42) + 'px ' + Site.mono();
+    const onPath = {};
+    for (let k = 0; k < dpState.pathShown; k++) onPath[dpState.path[k][0] + ',' + dpState.path[k][1]] = true;
+    let idx = 0;
+    for (let i = 0; i <= m; i++) for (let j = 0; j <= n; j++) {
+      const x = x0 + j * cell, y = y0 + i * cell;
+      const filled = idx < dpState.filled;
+      c.fillStyle = onPath[i + ',' + j] ? 'rgba(140,233,154,0.35)' : (filled ? '#141a24' : '#0a0d12');
+      c.fillRect(x + 1, y + 1, cell - 2, cell - 2);
+      if (filled) {
+        c.fillStyle = onPath[i + ',' + j] ? C.green : (idx === dpState.filled - 1 ? C.amber : C.ink);
+        c.fillText(String(dpState.D[i][j]), x + cell / 2, y + cell / 2);
+      }
+      idx++;
+    }
+    c.fillStyle = C.muted;
+    c.font = '11px ' + Site.mono();
+    c.textAlign = 'left';
+    c.fillText('edit distance = ' + dpState.D[m][n] + '   (bottom right corner)', x0, y0 + (m + 1) * cell + 14);
+  }
+  const dpLoop = Site.loop(dpcan.el, function () {
+    if (dpState && !dpState.done) {
+      if (dpState.filled < dpState.total) dpState.filled += 1;
+      else if (dpState.pathShown < dpState.path.length) dpState.pathShown += 1;
+      else dpState.done = true;
+    }
+    drawDp();
+  });
+  Site.button(document.getElementById('dprow'), { label: 'Replay', onClick: startDp });
+  Site.button(document.getElementById('dprow'), { label: 'Random pair', onClick: function () { A = randomBits(8); Bw = corrupt(A); if (Bw.length < 2) Bw = [0, 1]; if (Bw.length > 12) Bw.length = 12; bitButtons(dpa, A, 'word A'); bitButtons(dpb, Bw, 'word B'); startDp(); } });
+  startDp();
+  dpLoop.start();
+
+  /* RMSE bars */
+  const bars = Site.canvas(document.getElementById('bars'), { height: 220 });
+  function drawBars() {
+    const c = bars.ctx, w = bars.w, h = bars.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const data = [['Siamese encoder (mine)', 2.092, C.green], ['CGK', 2.622, C.muted], ['CNN-ED', 2.906, C.muted]];
+    const p = new Site.Plot(c, { x: [0, 3], y: [0, 3.4], box: { x: 44, y: 22, w: w - 56, h: h - 56 }, title: 'RMSE of edit distance estimate, lower is better', xticks: [] });
+    p.axes();
+    data.forEach(function (d, i) {
+      const x0 = p.px(i + 0.2), x1 = p.px(i + 0.8);
+      c.fillStyle = d[2];
+      c.fillRect(x0, p.py(d[1]), x1 - x0, p.py(0) - p.py(d[1]));
+      c.fillStyle = C.ink;
+      c.font = '600 12px ' + Site.mono();
+      c.textAlign = 'center';
+      c.textBaseline = 'bottom';
+      c.fillText(d[1].toFixed(3), (x0 + x1) / 2, p.py(d[1]) - 4);
+      c.fillStyle = C.muted;
+      c.font = '11px ' + Site.mono();
+      c.textBaseline = 'top';
+      c.fillText(d[0], (x0 + x1) / 2, p.py(0) + 6);
+    });
+  }
+  drawBars();
+  bars.onresize = drawBars;
+
+  /* Triplet loss */
+  const T = { margin: 1.0, eta: 0.03, running: true, trips: [] };
+  function newTriplets() {
+    T.trips = [];
+    for (let k = 0; k < 5; k++) {
+      const a = [Math.random() * 6 - 3, Math.random() * 4 - 2];
+      T.trips.push({ a: a, p: [a[0] + (Math.random() - 0.5) * 3, a[1] + (Math.random() - 0.5) * 3], n: [a[0] + (Math.random() - 0.5) * 3, a[1] + (Math.random() - 0.5) * 3] });
+    }
+  }
+  newTriplets();
+  function dist(u, v) { return Math.hypot(u[0] - v[0], u[1] - v[1]); }
+  function tripStep() {
+    let total = 0, active = 0;
+    T.trips.forEach(function (t) {
+      const dap = dist(t.a, t.p), dan = dist(t.a, t.n);
+      const L = Math.max(0, dap - dan + T.margin);
+      total += L;
+      if (L > 0) {
+        active++;
+        const gp = [(t.p[0] - t.a[0]) / (dap + 1e-9), (t.p[1] - t.a[1]) / (dap + 1e-9)];
+        const gn = [-(t.n[0] - t.a[0]) / (dan + 1e-9), -(t.n[1] - t.a[1]) / (dan + 1e-9)];
+        t.p[0] -= T.eta * gp[0]; t.p[1] -= T.eta * gp[1];
+        t.n[0] -= T.eta * gn[0]; t.n[1] -= T.eta * gn[1];
+      }
+    });
+    return { loss: total / T.trips.length, active: active };
+  }
+  const trictl = document.getElementById('trictl');
+  Site.slider(trictl, { label: 'margin', min: 0.2, max: 2.5, step: 0.05, value: 1.0, onInput: function (v) { T.margin = v; } });
+  Site.slider(trictl, { label: 'step size', min: 0.005, max: 0.1, step: 0.005, value: 0.03, digits: 3, onInput: function (v) { T.eta = v; } });
+  const trirow = document.getElementById('trirow');
+  const runB = Site.button(trirow, { label: 'Pause', onClick: function (b) { T.running = !T.running; b.textContent = T.running ? 'Pause' : 'Run'; } });
+  Site.button(trirow, { label: 'New triplets', onClick: newTriplets });
+  const triro = Site.readouts(document.getElementById('triro'), [{ key: 'loss', label: 'mean loss', color: 'amber' }, { key: 'act', label: 'triplets still violating', color: 'red' }]);
+  const tri = Site.canvas(document.getElementById('tri'), { aspect: 0.55 });
+  function toPx(v) { const s = Math.min(tri.w / 8, tri.h / 5.5); return [tri.w / 2 + v[0] * s, tri.h / 2 + v[1] * s]; }
+  function fromPx(px, py) { const s = Math.min(tri.w / 8, tri.h / 5.5); return [(px - tri.w / 2) / s, (py - tri.h / 2) / s]; }
+  tri.el.addEventListener('pointerdown', function (e) {
+    const rect = tri.el.getBoundingClientRect();
+    const v = fromPx(e.clientX - rect.left, e.clientY - rect.top);
+    let best = 0, bd = 1e9;
+    T.trips.forEach(function (t, i) { const d = dist(t.a, v); if (d < bd) { bd = d; best = i; } });
+    T.trips[best].n = v;
+  });
+  tri.el.style.cursor = 'crosshair';
+  function drawTri() {
+    const c = tri.ctx, w = tri.w, h = tri.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const s = Math.min(w / 8, h / 5.5);
+    T.trips.forEach(function (t) {
+      const a = toPx(t.a), p = toPx(t.p), n = toPx(t.n);
+      const dap = dist(t.a, t.p);
+      const viol = dap - dist(t.a, t.n) + T.margin > 0;
+      c.strokeStyle = viol ? 'rgba(255,107,107,0.6)' : 'rgba(140,233,154,0.5)';
+      c.setLineDash([4, 4]);
+      c.lineWidth = 1;
+      c.beginPath(); c.arc(a[0], a[1], (dap + T.margin) * s, 0, Math.PI * 2); c.stroke();
+      c.setLineDash([]);
+      c.strokeStyle = '#2e3a52';
+      c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(p[0], p[1]); c.stroke();
+      c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(n[0], n[1]); c.stroke();
+      c.fillStyle = C.green; c.beginPath(); c.arc(p[0], p[1], 6, 0, Math.PI * 2); c.fill();
+      c.fillStyle = C.red; c.beginPath(); c.arc(n[0], n[1], 6, 0, Math.PI * 2); c.fill();
+      c.fillStyle = C.white; c.beginPath(); c.arc(a[0], a[1], 7, 0, Math.PI * 2); c.fill();
+    });
+    c.fillStyle = C.muted;
+    c.font = '11px ' + Site.mono();
+    c.textAlign = 'left';
+    c.fillText('white anchor · green positive pulled in · red negative pushed past the ring', 10, h - 10);
+  }
+  const triLoop = Site.loop(tri.el, function () {
+    let r = { loss: 0, active: 0 };
+    if (T.running) r = tripStep(); else { T.trips.forEach(function (t) { const L = Math.max(0, dist(t.a, t.p) - dist(t.a, t.n) + T.margin); r.loss += L / T.trips.length; if (L > 0) r.active++; }); }
+    drawTri();
+    triro.set('loss', r.loss.toFixed(3));
+    triro.set('act', r.active + ' of ' + T.trips.length);
+  });
+  triLoop.start();
+  void runB;
+
+  /* CTC plots */
+  const ctc = Site.canvas(document.getElementById('ctcplot'), { aspect: 0.7 });
+  function drawCtc() {
+    const c = ctc.ctx, w = ctc.w, h = ctc.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const p = new Site.Plot(c, { x: [0, 31], y: [0.66, 0.76], box: { x: 50, y: 22, w: w - 62, h: h - 58 }, title: 'CTC training loss', xlabel: 'epoch' });
+    p.axes();
+    p.hline(Math.log(2), { color: C.red, label: 'ln 2 = 0.6931, a coin flip per bit' });
+    p.line([[1, 0.7388], [30, 0.6856]], { color: C.muted, width: 1, dash: [3, 4] });
+    p.dot(1, 0.7388, { color: C.amber, ring: true });
+    p.dot(30, 0.6856, { color: C.amber, ring: true });
+    p.text(1, 0.7388, '0.7388', { dx: 12, dy: -2 });
+    p.text(30, 0.6856, '0.6856', { dx: -8, dy: 14, align: 'right' });
+    p.text(15, 0.712, 'only the endpoints were recorded', { color: C.muted, align: 'center', size: 10 });
+  }
+  const ber = Site.canvas(document.getElementById('berbars'), { aspect: 0.7 });
+  function drawBer() {
+    const c = ber.ctx, w = ber.w, h = ber.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const copy = trialStats ? trialStats.ber : lastCopyBer;
+    const data = [['copy the input', copy, C.green, 'this channel'], ['coin flip', 0.5, C.muted, 'ln 2 floor'], ['CTC model', 0.5859, C.red, 'recorded'], ['memorize 128', 0.5022, C.red, 'recorded']];
+    const p = new Site.Plot(c, { x: [0, 4], y: [0, 0.7], box: { x: 44, y: 22, w: w - 56, h: h - 58 }, title: 'bit error rate, lower is better', xticks: [] });
+    p.axes();
+    data.forEach(function (d, i) {
+      const x0 = p.px(i + 0.15), x1 = p.px(i + 0.85);
+      c.fillStyle = d[2];
+      c.fillRect(x0, p.py(d[1]), x1 - x0, p.py(0) - p.py(d[1]));
+      c.fillStyle = C.ink;
+      c.font = '600 11px ' + Site.mono();
+      c.textAlign = 'center';
+      c.textBaseline = 'bottom';
+      c.fillText(d[1].toFixed(3), (x0 + x1) / 2, p.py(d[1]) - 3);
+      c.fillStyle = C.muted;
+      c.font = '10px ' + Site.mono();
+      c.textBaseline = 'top';
+      c.fillText(d[0], (x0 + x1) / 2, p.py(0) + 5);
+      c.fillText(d[3], (x0 + x1) / 2, p.py(0) + 17);
+    });
+  }
+  berReady = true;
+  drawCtc();
+  drawBer();
+  ctc.onresize = drawCtc;
+  ber.onresize = drawBer;
+})();
+</script>
 </body>
 </html>
