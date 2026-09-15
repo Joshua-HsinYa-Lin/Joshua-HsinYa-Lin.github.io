@@ -4,8 +4,22 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>The board that disconnects the battery — Hsin Ya Lin</title>
+<meta name="description" content="A six cell battery protection board for a lunar rover: overload it, overcharge it, overheat it, and watch the FETs open.">
 <link rel="stylesheet" href="../../shared/site.css">
 <script src="../../shared/site.js"></script>
+<style>
+.split { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 1rem; }
+@media (max-width: 760px) { .split { grid-template-columns: 1fr; } }
+.hot { position: relative; display: inline-block; max-width: 100%; }
+.hot img { display: block; border: 1px solid var(--rule); border-radius: 8px; max-height: none; }
+.hot button { position: absolute; transform: translate(-50%, -50%); width: 26px; height: 26px; border-radius: 50%; border: 2px solid #fff; background: var(--accent); color: #fff; font: 600 12px var(--mono); cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.35); padding: 0; }
+.hot button.on { background: var(--accent2); transform: translate(-50%, -50%) scale(1.15); }
+.hotlist { list-style: none; padding: 0; margin: 0.6rem 0 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.4rem; }
+.hotlist li { display: flex; gap: 0.6rem; align-items: flex-start; font-size: 0.9rem; padding: 0.4rem 0.5rem; border-radius: 8px; border: 1px solid transparent; cursor: pointer; }
+.hotlist li.on { border-color: var(--accent2); background: var(--bg2); }
+.hotlist li b { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff; font: 600 11px var(--mono); display: grid; place-items: center; }
+.hotlist li span { color: var(--ink2); }
+</style>
 </head>
 <body>
 <header class="site-header" data-root="../../"></header>
@@ -13,26 +27,419 @@
 <div class="kicker">Purdue Lunabotics · Power and Hardware Team Developer</div>
 <h1>The board that disconnects the battery</h1>
 <div class="when">Sep 2025 to Aug 2026 · West Lafayette, Indiana</div>
-<p class="lede">A lithium pack on a rover will happily deliver a short circuit until it catches fire. This board watches six cells and opens the path to the robot the moment any of them is asked for too much.</p>
-<p class="note">The interactive version of this page is being built. What is here now is the summary and the design files.</p>
+<p class="lede">A lithium pack will deliver a short circuit until it catches fire. This board sits between six cells and a lunar excavation rover, watches every cell, and opens the path the moment any of them is asked for too much: too much current, too much voltage in or out, too much heat.</p>
+<div class="tags"><span>Battery protection</span><span>BQ77915</span><span>KiCad</span><span>LTspice</span><span>PCB layout</span><span>Hand assembly</span><span>Bench test</span></div>
 
-<section class="sub">
-<h2>What I did</h2>
-<ul>
-<li>Designed a 24V, 20A six-cell battery sensing and protection board around the TI BQ77915 in KiCad, and verified the analog behavior in LTspice before committing to fabrication.</li>
-<li>Laid the board out for fabrication, then hand-assembled and micro-soldered 50+ components onto the finished board.</li>
-<li>Diagnosed voltage and thermal variances during bench testing to prevent system failure, and integrated the board into the rover power distribution system.</li>
-</ul>
+<section class="sub" id="pack">
+<h2>Six cells, two protectors</h2>
+<p>The pack is six lithium cells in series, 24 V nominal, rated for 20 A. Two BQ77915 family protectors watch three cells each, stacked so the upper one's reference is the top of the lower one's cells, and their outputs are chained so either can open the pack. Discharge and charge each go through their own MOSFET. Load the pack, charge it, short it, heat it, and watch which protector trips and which FET opens.</p>
+<div class="panel">
+  <div class="split">
+    <canvas id="packcv" aria-label="Battery pack with protection FETs"></canvas>
+    <canvas id="packplot" aria-label="Pack voltage and current over time"></canvas>
+  </div>
+  <div class="controls" id="pctl"></div>
+  <div class="btnrow" id="prow"></div>
+  <div id="pro"></div>
+  <p class="hint">Time runs sixty times faster than real. After an overcurrent trip the board waits for the load to be removed before it reconnects, which is the load removal detection block on the schematic; slide the load to zero to recover.</p>
+</div>
+<p class="note hook">The thresholds and delays here are typical lithium ion values so the behavior is visible. On the real board they are set by the resistor network around each protector and were chosen for this pack. The programmed values would replace the defaults in the sliders.</p>
 </section>
 
-<section class="sub">
-<h2>Design files</h2>
-<div class="figs">
-<figure><img src="schematic.png" alt="Battery protection board schematic" loading="lazy"><figcaption>Schematic: two stacked BQ7791504 protectors, cell balancing, thermistors, and load removal detection.</figcaption></figure>
-<figure><img src="board.jpg" alt="BQ77915 battery protection board layout" loading="lazy"><figcaption>Board layout render.</figcaption></figure>
+<section class="sub" id="balance">
+<h2>Why the cells drift, and what balancing does</h2>
+<p>Six cells never charge identically. The one with slightly less capacity fills first, and if the pack keeps charging until the total looks full, that cell is overcharged. The protector bleeds the highest cell through a resistor while the others catch up. Charge the pack above with one cell weaker than the rest and watch the bleed.</p>
+<div class="panel">
+  <canvas id="bal" aria-label="Cell balancing"></canvas>
+  <div class="controls" id="bctl"></div>
+  <div class="btnrow" id="brow"></div>
 </div>
 </section>
+
+<section class="sub" id="board">
+<h2>From schematic to board</h2>
+<p>Designed in KiCad, verified in LTspice before fabrication, laid out, sent out, then hand assembled: more than fifty components, including the two fine pitch protector ICs, soldered under a microscope. Click a marker to find it.</p>
+<div class="panel" style="padding: 0.6rem;">
+  <div class="hot" id="hot">
+    <img src="board.jpg" alt="Board layout render of the battery protection board">
+  </div>
+  <ul class="hotlist" id="hotlist"></ul>
+</div>
+<figure><img src="schematic.png" alt="Battery protection board schematic" loading="lazy"><figcaption>The schematic. Cell inputs enter through series resistors and capacitors on the left, the two stacked protectors sit in the middle with their control pins chained, thermistors on each protector's TS input, and the load removal detection block on the right.</figcaption></figure>
+</section>
+
+<section class="sub" id="did">
+<h2>What the work was</h2>
+<ol class="steps">
+  <li><b>Circuit design in KiCad.</b> Two stacked protectors, cell sense network, balancing, thermistors, load removal detection, and the connectors to the cells, the charger and the rover.</li>
+  <li><b>Simulation in LTspice.</b> The analog behavior checked before anything was ordered.</li>
+  <li><b>Layout and fabrication.</b> The board laid out and sent out.</li>
+  <li><b>Hand assembly.</b> 50+ components soldered by hand, including the fine pitch ICs.</li>
+  <li><b>Bench test.</b> Voltage and thermal behavior checked under load before it met the rover.</li>
+  <li><b>Integration.</b> Wired into the rover's power distribution.</li>
+</ol>
+<div class="stats">
+  <div class="stat"><b>24 V</b><span>six cell pack</span></div>
+  <div class="stat"><b>20 A</b><span>rated discharge</span></div>
+  <div class="stat"><b>2</b><span>stacked protector ICs</span></div>
+  <div class="stat"><b>50+</b><span>components hand soldered</span></div>
+</div>
+</section>
+
+<div class="next"><a href="../../#projects">All projects</a><a href="../ece20007/">Next: a boost converter and an equalizer</a></div>
 </main>
 <footer class="site-footer"></footer>
+
+<script>
+(function () {
+  const C = Site.colors;
+  const N = 6;
+  /* Illustrative pack model. Open circuit voltage linear in state of charge,
+     a small internal resistance per cell, a lumped thermal mass. */
+  const M = {
+    cap: 3.0, R: 0.015, OV: 4.25, OVr: 4.10, UV: 2.80, UVr: 3.00, OCD: 25, OCDdelay: 0.1, SCD: 60, SCDdelay: 0.0004, OT: 60, OTr: 50,
+    load: 8, chg: false, chgI: 5, short: false, timeScale: 60, Tamb: 25, weak: 0
+  };
+  const S = { soc: [], T: 25, dsg: true, chgFet: true, fault: '', who: '', ocdT: 0, scdT: 0, latched: false, I: 0, V: 0, t: 0, hist: [], balancing: [] };
+  function reset() {
+    S.soc = [];
+    for (let i = 0; i < N; i++) S.soc.push(0.62 + (i % 2 ? 0.02 : -0.02) + (i === 2 ? 0.05 : 0));
+    S.T = 25; S.dsg = true; S.chgFet = true; S.fault = ''; S.who = ''; S.ocdT = 0; S.scdT = 0; S.latched = false; S.t = 0; S.hist = [];
+    M.short = false;
+    S.balancing = new Array(N).fill(false);
+  }
+  reset();
+  function ocv(soc) { return 3.0 + 1.25 * Site.clamp(soc, 0, 1.02); }
+  function cellV(i, I) { return ocv(S.soc[i]) - I * M.R; }
+  function step(dt) {
+    let I = 0;
+    const vpack0 = S.soc.reduce(function (a, s) { return a + ocv(s); }, 0);
+    if (M.short && S.dsg) I = vpack0 / (N * M.R + 0.08);
+    else if (M.chg && S.chgFet && !M.short) I = -M.chgI;
+    else if (!M.chg && S.dsg) I = M.load;
+    else I = 0;
+    if (I > 0 && !S.dsg) I = 0;
+    if (I < 0 && !S.chgFet) I = 0;
+    S.I = I;
+    for (let i = 0; i < N; i++) {
+      S.soc[i] -= I * dt / 3600 / M.cap;
+      if (S.balancing[i]) S.soc[i] -= 0.15 * dt / 3600 / M.cap;
+      S.soc[i] = Site.clamp(S.soc[i], 0, 1.05);
+    }
+    const heat = I * I * (N * M.R + 0.02);
+    S.T += (heat - (S.T - M.Tamb) / 3.0) / 60 * dt;
+    const vs = [];
+    for (let i = 0; i < N; i++) vs.push(cellV(i, I));
+    S.V = vs.reduce(function (a, b) { return a + b; }, 0);
+    let fault = '', who = '';
+    const upper = [0, 1, 2], lower = [3, 4, 5];
+    function group(idx) { return idx === 0 ? 'upper protector' : 'lower protector'; }
+    [upper, lower].forEach(function (g, gi) {
+      g.forEach(function (i) {
+        if (vs[i] >= M.OV) { fault = 'overvoltage cell ' + (i + 1); who = group(gi); }
+        if (vs[i] <= M.UV && !fault) { fault = 'undervoltage cell ' + (i + 1); who = group(gi); }
+      });
+    });
+    if (I >= M.SCD) S.scdT += dt; else S.scdT = 0;
+    if (I >= M.OCD) S.ocdT += dt; else S.ocdT = 0;
+    if (S.scdT >= M.SCDdelay) { S.latched = true; S.fault = 'short circuit ' + I.toFixed(0) + ' A'; S.who = 'lower protector (current sense)'; }
+    else if (S.ocdT >= M.OCDdelay) { S.latched = true; S.fault = 'overcurrent ' + I.toFixed(1) + ' A'; S.who = 'lower protector (current sense)'; }
+    if (S.T >= M.OT) { fault = 'overtemperature ' + S.T.toFixed(0) + ' °C'; who = 'thermistor'; }
+    if (S.latched) {
+      S.dsg = false;
+      if (M.load === 0 && !M.short) { S.latched = false; S.fault = ''; S.who = ''; }
+    } else {
+      if (fault) { S.fault = fault; S.who = who; }
+      else if (S.fault && !/overcurrent|short/.test(S.fault)) {
+        const recovered = vs.every(function (v) { return v < M.OVr; }) && vs.every(function (v) { return v > M.UVr; }) && S.T < M.OTr;
+        if (recovered) { S.fault = ''; S.who = ''; }
+      }
+      const ov = /overvoltage/.test(S.fault), uv = /undervoltage/.test(S.fault), ot = /overtemperature/.test(S.fault);
+      S.chgFet = !(ov || ot);
+      S.dsg = !(uv || ot);
+    }
+    for (let i = 0; i < N; i++) {
+      const maxOther = Math.max.apply(null, vs.filter(function (_, j) { return j !== i; }));
+      S.balancing[i] = M.chg && vs[i] > 3.9 && vs[i] - maxOther > 0.015;
+    }
+    S.t += dt;
+    S.vs = vs;
+  }
+  const pctl = document.getElementById('pctl');
+  const sLoad = Site.slider(pctl, { label: 'load', min: 0, max: 40, step: 0.5, value: 8, unit: 'A', digits: 1, onInput: function (v) { M.load = v; if (v > 0) M.chg = false; chgT.value = M.chg; } });
+  Site.slider(pctl, { label: 'ambient', min: 0, max: 70, step: 1, value: 25, unit: '°C', digits: 0, onInput: function (v) { M.Tamb = v; } });
+  Site.slider(pctl, { label: 'OV trip', min: 4.0, max: 4.5, step: 0.01, value: 4.25, unit: 'V', onInput: function (v) { M.OV = v; M.OVr = v - 0.15; } });
+  Site.slider(pctl, { label: 'UV trip', min: 2.3, max: 3.3, step: 0.01, value: 2.8, unit: 'V', onInput: function (v) { M.UV = v; M.UVr = v + 0.2; } });
+  Site.slider(pctl, { label: 'OCD trip', min: 10, max: 40, step: 0.5, value: 25, unit: 'A', digits: 1, onInput: function (v) { M.OCD = v; } });
+  Site.slider(pctl, { label: 'OT trip', min: 40, max: 90, step: 1, value: 60, unit: '°C', digits: 0, onInput: function (v) { M.OT = v; M.OTr = v - 10; } });
+  const prow = document.getElementById('prow');
+  const chgT = Site.toggle(prow, { label: 'Charger connected', value: false, onChange: function (v) { M.chg = v; if (v) { M.load = 0; sLoad.value = 0; } } });
+  Site.button(prow, { label: 'Short the output', onClick: function () { M.short = true; setTimeout(function () { M.short = false; }, 1500); } });
+  Site.button(prow, { label: 'Reset pack', onClick: reset });
+  const pro = Site.readouts(document.getElementById('pro'), [
+    { key: 'v', label: 'pack', color: 'amber' }, { key: 'i', label: 'current', color: 'cyan' }, { key: 't', label: 'temp', color: 'pink' },
+    { key: 'dsg', label: 'DSG FET' }, { key: 'chg', label: 'CHG FET' }, { key: 'f', label: 'fault', color: 'red' }
+  ]);
+
+  const pack = Site.canvas(document.getElementById('packcv'), { aspect: 0.82 });
+  let dashOff = 0;
+  function drawPack() {
+    const c = pack.ctx, w = pack.w, h = pack.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const vs = S.vs || [];
+    const cellH = (h - 60) / N;
+    const cx = 18, cw = w * 0.30;
+    c.font = '11px ' + Site.mono();
+    c.textBaseline = 'middle';
+    for (let i = 0; i < N; i++) {
+      const y = 30 + i * cellH;
+      const v = vs[i] || 3.7;
+      const f = Site.clamp((v - 2.5) / (4.4 - 2.5), 0, 1);
+      c.fillStyle = '#141a24';
+      c.fillRect(cx, y + 3, cw, cellH - 6);
+      let col = C.green;
+      if (v >= M.OV) col = C.red; else if (v <= M.UV) col = C.red; else if (v > 4.1 || v < 3.1) col = C.amber;
+      c.fillStyle = col;
+      c.fillRect(cx, y + 3, cw * f, cellH - 6);
+      if (S.balancing[i]) {
+        c.strokeStyle = C.violet;
+        c.lineWidth = 2;
+        c.strokeRect(cx + 1, y + 4, cw - 2, cellH - 8);
+      }
+      c.fillStyle = C.ink;
+      c.textAlign = 'left';
+      c.fillText('cell ' + (i + 1) + '  ' + v.toFixed(2) + ' V', cx + 6, y + cellH / 2);
+    }
+    c.fillStyle = C.muted;
+    c.textAlign = 'left';
+    c.fillText('upper protector: cells 1 to 3', cx, 16);
+    c.fillText('lower protector: cells 4 to 6', cx, 30 + 3 * cellH - 6);
+    c.strokeStyle = '#2e3a52';
+    c.setLineDash([3, 3]);
+    c.beginPath(); c.moveTo(cx, 30 + 3 * cellH); c.lineTo(cx + cw, 30 + 3 * cellH); c.stroke();
+    c.setLineDash([]);
+    const px = cx + cw + 30;
+    const pw = w - px - 18;
+    const topY = 40, botY = h - 40;
+    const midY = (topY + botY) / 2;
+    c.strokeStyle = '#3a4661';
+    c.lineWidth = 3;
+    c.beginPath();
+    c.moveTo(cx + cw, topY); c.lineTo(px + pw * 0.15, topY);
+    c.lineTo(px + pw * 0.15, midY - 60);
+    c.stroke();
+    function fet(x, y, on, label) {
+      c.fillStyle = '#141a24';
+      c.strokeStyle = on ? C.green : C.red;
+      c.lineWidth = 2;
+      c.beginPath(); c.roundRect(x - 26, y - 18, 52, 36, 6); c.fill(); c.stroke();
+      c.strokeStyle = on ? C.green : C.red;
+      c.lineWidth = 3;
+      c.beginPath();
+      if (on) { c.moveTo(x, y - 18); c.lineTo(x, y + 18); }
+      else { c.moveTo(x, y - 18); c.lineTo(x, y - 6); c.moveTo(x - 10, y + 8); c.lineTo(x, y + 18); }
+      c.stroke();
+      c.fillStyle = C.muted;
+      c.font = '10px ' + Site.mono();
+      c.textAlign = 'left';
+      c.fillText(label, x + 32, y);
+      c.fillStyle = on ? C.green : C.red;
+      c.fillText(on ? 'closed' : 'OPEN', x + 32, y + 13);
+    }
+    const fx = px + pw * 0.15;
+    fet(fx, midY - 40, S.dsg, 'DSG FET');
+    c.strokeStyle = '#3a4661';
+    c.lineWidth = 3;
+    c.beginPath(); c.moveTo(fx, midY - 22); c.lineTo(fx, midY + 2); c.stroke();
+    fet(fx, midY + 20, S.chgFet, 'CHG FET');
+    c.beginPath(); c.moveTo(fx, midY + 38); c.lineTo(fx, botY); c.lineTo(px + pw * 0.6, botY); c.stroke();
+    c.beginPath(); c.moveTo(px + pw * 0.6, topY); c.lineTo(px + pw * 0.6, botY); c.stroke();
+    c.beginPath(); c.moveTo(fx, topY); c.lineTo(px + pw * 0.6, topY); c.stroke();
+    c.beginPath(); c.moveTo(cx + cw, botY); c.lineTo(fx, botY); c.stroke();
+    c.fillStyle = '#141a24';
+    c.strokeStyle = M.chg ? C.cyan : (M.short ? C.red : C.amber);
+    c.lineWidth = 2;
+    c.beginPath(); c.roundRect(px + pw * 0.6 - 34, midY - 26, 68, 52, 6); c.fill(); c.stroke();
+    c.fillStyle = C.ink;
+    c.font = '600 11px ' + Site.sans();
+    c.textAlign = 'center';
+    c.fillText(M.short ? 'SHORT' : (M.chg ? 'charger' : 'rover'), px + pw * 0.6, midY - 6);
+    c.fillStyle = C.muted;
+    c.font = '10px ' + Site.mono();
+    c.fillText(Math.abs(S.I).toFixed(1) + ' A', px + pw * 0.6, midY + 10);
+    if (Math.abs(S.I) > 0.05) {
+      dashOff -= Math.sign(S.I) * Math.min(6, Math.abs(S.I) * 0.15);
+      c.strokeStyle = S.I > 0 ? C.amber : C.cyan;
+      c.lineWidth = 2;
+      c.setLineDash([6, 10]);
+      c.lineDashOffset = dashOff;
+      c.beginPath();
+      c.moveTo(cx + cw, topY); c.lineTo(fx, topY); c.lineTo(fx, midY - 58);
+      c.moveTo(fx, midY + 38); c.lineTo(fx, botY); c.lineTo(px + pw * 0.6, botY); c.lineTo(px + pw * 0.6, midY + 26);
+      c.moveTo(px + pw * 0.6, midY - 26); c.lineTo(px + pw * 0.6, topY); c.lineTo(fx, topY);
+      c.stroke();
+      c.setLineDash([]);
+    }
+    const tx = px + pw * 0.92, ty0 = topY + 20, th = botY - topY - 40;
+    c.fillStyle = '#141a24';
+    c.fillRect(tx - 6, ty0, 12, th);
+    const tf = Site.clamp((S.T - 0) / 100, 0, 1);
+    c.fillStyle = S.T >= M.OT ? C.red : (S.T > M.OT - 10 ? C.amber : C.pink);
+    c.fillRect(tx - 6, ty0 + th * (1 - tf), 12, th * tf);
+    c.fillStyle = C.muted;
+    c.textAlign = 'center';
+    c.fillText(S.T.toFixed(0) + '°C', tx, botY + 8);
+    c.fillText('NTC', tx, topY + 8);
+    if (S.fault) {
+      c.fillStyle = 'rgba(255,107,107,0.12)';
+      c.fillRect(px - 10, 4, w - px + 4, 22);
+      c.fillStyle = C.red;
+      c.font = '600 12px ' + Site.sans();
+      c.textAlign = 'left';
+      c.fillText(S.fault + '  →  ' + S.who, px - 4, 15);
+    }
+  }
+  const packplot = Site.canvas(document.getElementById('packplot'), { aspect: 0.82 });
+  const HT = 90;
+  function drawPackPlot() {
+    const c = packplot.ctx, w = packplot.w, h = packplot.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const t0 = Math.max(0, S.t - HT);
+    const p1 = new Site.Plot(c, { x: [t0, t0 + HT], y: [15, 27], box: { x: 44, y: 22, w: w - 56, h: h / 2 - 44 }, title: 'pack voltage, V', xticks: [] });
+    const p2 = new Site.Plot(c, { x: [t0, t0 + HT], y: [-10, 70], box: { x: 44, y: h / 2 + 12, w: w - 56, h: h / 2 - 46 }, title: 'current, A (discharge positive)', xlabel: 'seconds of pack time' });
+    p1.axes(); p2.axes();
+    if (S.hist.length > 1) {
+      p1.line(S.hist.map(function (q) { return [q[0], q[1]]; }), { color: C.amber, width: 2 });
+      p2.line(S.hist.map(function (q) { return [q[0], q[2]]; }), { color: C.cyan, width: 2 });
+    }
+    p2.hline(M.OCD, { color: C.red, label: 'OCD ' + M.OCD + ' A' });
+    p2.hline(M.SCD, { color: C.red, label: 'SCD ' + M.SCD + ' A', dash: [2, 3] });
+    p1.hline(N * M.OV, { color: C.red, label: 'all cells at OV' });
+    p1.hline(N * M.UV, { color: C.red, label: 'all cells at UV', align: 'left' });
+  }
+  const loop = Site.loop(pack.el, function (dt) {
+    const simDt = dt * M.timeScale;
+    const n = Math.max(1, Math.ceil(simDt / 0.02));
+    for (let i = 0; i < n; i++) step(simDt / n);
+    S.hist.push([S.t, S.V, S.I]);
+    while (S.hist.length && S.hist[0][0] < S.t - HT) S.hist.shift();
+    drawPack();
+    drawPackPlot();
+    pro.set('v', S.V.toFixed(2) + ' V');
+    pro.set('i', S.I.toFixed(1) + ' A');
+    pro.set('t', S.T.toFixed(0) + ' °C');
+    pro.set('dsg', S.dsg ? 'closed' : 'OPEN');
+    pro.set('chg', S.chgFet ? 'closed' : 'OPEN');
+    pro.set('f', S.fault || 'none');
+  });
+  loop.start();
+
+  /* Balancing */
+  const BS = { soc: [0.80, 0.78, 0.92, 0.79, 0.81, 0.77], on: true, chg: true, t: 0, bleed: 0.5, thr: 0.02 };
+  const bctl = document.getElementById('bctl');
+  Site.slider(bctl, { label: 'bleed rate', min: 0.05, max: 2, step: 0.05, value: 0.5, unit: 'A', onInput: function (v) { BS.bleed = v; } });
+  Site.slider(bctl, { label: 'threshold', min: 0.005, max: 0.1, step: 0.005, value: 0.02, fmt: function (v) { return (v * 1000).toFixed(0) + ' mV'; }, onInput: function (v) { BS.thr = v; } });
+  const brow = document.getElementById('brow');
+  Site.toggle(brow, { label: 'Balancing enabled', value: true, onChange: function (v) { BS.on = v; } });
+  Site.button(brow, { label: 'Restart charge with one high cell', onClick: function () { BS.soc = [0.80, 0.78, 0.92, 0.79, 0.81, 0.77]; BS.t = 0; } });
+  const bal = Site.canvas(document.getElementById('bal'), { aspect: 0.4 });
+  function balStep(dt) {
+    const vs = BS.soc.map(ocv);
+    const vmax = Math.max.apply(null, vs);
+    const full = vs.some(function (v) { return v >= 4.20; });
+    const I = full ? 0 : 2.0;
+    for (let i = 0; i < N; i++) {
+      BS.soc[i] += I * dt / 3600 / M.cap;
+      const others = vs.filter(function (_, j) { return j !== i; });
+      const second = Math.max.apply(null, others);
+      const bleeding = BS.on && vs[i] > 3.9 && vs[i] - Math.min.apply(null, others) > BS.thr && vs[i] >= vmax - 1e-9;
+      if (bleeding) BS.soc[i] -= BS.bleed * dt / 3600 / M.cap;
+      BS.soc[i] = Site.clamp(BS.soc[i], 0, 1.05);
+      void second;
+    }
+    BS.t += dt;
+    BS.full = full;
+  }
+  function drawBal() {
+    const c = bal.ctx, w = bal.w, h = bal.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const vs = BS.soc.map(ocv);
+    const vmax = Math.max.apply(null, vs), vmin = Math.min.apply(null, vs);
+    const bw = Math.min(70, (w - 80) / N - 10);
+    const gap = (w - N * bw) / (N + 1);
+    const base = h - 34, top = 26;
+    c.font = '11px ' + Site.mono();
+    c.textAlign = 'center';
+    for (let i = 0; i < N; i++) {
+      const x = gap + i * (bw + gap);
+      const f = Site.clamp((vs[i] - 3.0) / (4.3 - 3.0), 0, 1);
+      c.fillStyle = '#141a24';
+      c.fillRect(x, top, bw, base - top);
+      const bleeding = BS.on && vs[i] >= vmax - 1e-9 && vmax - vmin > BS.thr && vs[i] > 3.9;
+      c.fillStyle = bleeding ? C.violet : (vs[i] >= 4.2 ? C.red : C.green);
+      c.fillRect(x, base - (base - top) * f, bw, (base - top) * f);
+      c.fillStyle = C.ink;
+      c.fillText(vs[i].toFixed(3), x + bw / 2, base + 14);
+      if (bleeding) { c.fillStyle = C.violet; c.fillText('bleed', x + bw / 2, top - 10); }
+    }
+    const y42 = base - (base - top) * ((4.2 - 3.0) / 1.3);
+    c.strokeStyle = C.red;
+    c.setLineDash([4, 4]);
+    c.beginPath(); c.moveTo(gap, y42); c.lineTo(w - gap, y42); c.stroke();
+    c.setLineDash([]);
+    c.fillStyle = C.muted;
+    c.textAlign = 'left';
+    c.fillText(BS.full ? 'charger stopped: a cell reached 4.20 V. spread ' + ((vmax - vmin) * 1000).toFixed(0) + ' mV' : 'charging at 2 A, spread ' + ((vmax - vmin) * 1000).toFixed(0) + ' mV', gap, 12);
+  }
+  const balLoop = Site.loop(bal.el, function (dt) {
+    const simDt = dt * 120;
+    const n = Math.max(1, Math.ceil(simDt / 0.05));
+    for (let i = 0; i < n; i++) balStep(simDt / n);
+    drawBal();
+  });
+  balLoop.start();
+
+  /* Board hotspots, positions as fractions of the render */
+  const spots = [
+    ['U1', 48.5, 47.5, 'Upper protector, BQ7791504PW', 'watches cells 1 to 3; its outputs are chained into U2 through Rctrc and Rctrd'],
+    ['U2', 49, 80, 'Lower protector', 'watches cells 4 to 6 and drives the discharge and charge control'],
+    ['J1', 30.5, 68.5, 'Cell connector, J_cell1', 'seven pins: six cell taps and the bottom of the stack'],
+    ['J2', 71.5, 46, 'Battery terminal, J_bat1', 'pack positive out'],
+    ['J3', 70, 79, 'Rover connector, J_robot1', 'the protected output to the power distribution'],
+    ['Q1', 34, 40, 'Load removal detection, Q1 and JP1', 'an NMOS and jumper that let the board see the load disconnect and reset after an overcurrent trip'],
+    ['R', 41, 55, 'Cell sense network, Rin and Cin', 'a series resistor and filter capacitor on every cell tap before it reaches a protector'],
+    ['T', 60, 48, 'Thermistor inputs, RTs', 'NTC pull-ups on each protector TS pin for overtemperature'],
+    ['B', 60, 86, 'Balancing resistors, Rcb', 'set the bleed path the protectors use to balance a high cell'],
+    ['H', 24, 8, 'Mounting holes', 'four, so the board bolts to the rover chassis']
+  ];
+  const hot = document.getElementById('hot');
+  const hotlist = document.getElementById('hotlist');
+  const btns = [], items = [];
+  function select(i) {
+    btns.forEach(function (b, j) { b.classList.toggle('on', i === j); });
+    items.forEach(function (b, j) { b.classList.toggle('on', i === j); });
+  }
+  spots.forEach(function (s, i) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = s[0];
+    b.style.left = s[1] + '%';
+    b.style.top = s[2] + '%';
+    b.title = s[3];
+    b.addEventListener('click', function () { select(i); });
+    hot.appendChild(b);
+    btns.push(b);
+    const li = document.createElement('li');
+    li.innerHTML = '<b>' + s[0] + '</b><div><strong>' + s[3] + '</strong><br><span>' + s[4] + '</span></div>';
+    li.addEventListener('click', function () { select(i); });
+    hotlist.appendChild(li);
+    items.push(li);
+  });
+  select(0);
+})();
+</script>
 </body>
 </html>

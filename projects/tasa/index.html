@@ -4,8 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pointing a satellite with spinning wheels — Hsin Ya Lin</title>
+<meta name="description" content="Slew a satellite with a reaction wheel, allocate torque across a four wheel pyramid, and see what 727 ms of loop latency does to a controller.">
 <link rel="stylesheet" href="../../shared/site.css">
 <script src="../../shared/site.js"></script>
+<style>
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
+@media (max-width: 760px) { .split { grid-template-columns: 1fr; } }
+.tiers { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.7rem; margin: 1rem 0; }
+.tier { background: var(--bg2); border: 1px solid var(--rule); border-radius: 10px; padding: 0.7rem 0.85rem; font-size: 0.92rem; }
+.tier b { display: block; margin-bottom: 0.2rem; }
+.tier span { display: block; color: var(--muted); font-family: var(--mono); font-size: 0.76rem; margin-bottom: 0.3rem; }
+</style>
 </head>
 <body>
 <header class="site-header" data-root="../../"></header>
@@ -14,30 +23,576 @@
 <h1>Pointing a satellite with spinning wheels</h1>
 <div class="when">Jul 2026 to Aug 2026 · Hsinchu, Taiwan</div>
 <p class="lede">A satellite has nothing to push against. To turn it, you spin a wheel inside it one way and the body turns the other. I built the bench electronics and the flight firmware that command four such wheels, and the simulator that predicted what they would do, then put the two together on an air bearing stage.</p>
-<p class="note">The interactive version of this page is being built. What is here now is the summary and the photographs.</p>
+<div class="tags"><span>Attitude control</span><span>ESP32-S3 firmware</span><span>RS-422</span><span>IMU</span><span>KiCad</span><span>MATLAB and Simulink</span><span>Hardware in the loop</span></div>
 
-<section class="sub">
-<h2>What I did</h2>
-<ul>
-<li>Designed the bench test board for reaction wheel validation in KiCad and built it, integrating an ESP32-S3 microcontroller, a 9-axis IMU over I2C, an RS422 transceiver, and a DC-DC buck converter with hardware and software safety interlocks.</li>
-<li>Wrote 10,000 lines of embedded C and C++ attitude control firmware across 30 modules for an ESP32-S3, implementing the RS-422 actuator protocol, a BNO055 IMU driver, dual-transport operator telemetry, and autonomous fault detection, isolation and recovery. Cut combined communication and motor latency from 727 ms to 263 ms.</li>
-<li>Verified the RS422 serial protocol byte by byte against oscilloscope-captured traffic, diagnosing four firmware defects including memory corruption behind a reboot loop.</li>
-<li>Built a 20,000-line, 157-module MATLAB simulation with 100 testbenches covering rigid-body dynamics, quaternion control, pyramid torque allocation and orbital disturbances, then validated it against an air-bearing physical twin across 65 hardware-in-the-loop runs.</li>
-<li>Delivered an actuator sizing and trade study across 8 parameters, 12 metrics and 6 slewing maneuvers, documented in a 768-paragraph technical report with 21 tables and 40 figures, plus an A1 conference poster.</li>
-</ul>
-<p>Specific project details are covered by confidentiality.</p>
+<section class="sub" id="wheel">
+<h2>Turn the satellite</h2>
+<p>Click anywhere on the ring to give the satellite a new heading. A proportional derivative controller commands torque on the wheel; the wheel spins up one way and the body turns the other, because their angular momenta have to cancel. Watch the momentum bar: what the body gains, the wheel loses, exactly.</p>
+<div class="panel">
+  <div class="split">
+    <canvas id="sat" aria-label="Top view of a satellite with a reaction wheel"></canvas>
+    <canvas id="satplot" aria-label="Heading and wheel speed against time"></canvas>
+  </div>
+  <div class="controls" id="satctl"></div>
+  <div class="btnrow" id="satrow"></div>
+  <div id="satro"></div>
+  <p class="hint">Add a steady disturbance torque and the wheel has to keep speeding up just to hold still. When it reaches its speed limit it can give no more, and the body drifts. That is momentum saturation, and it is why real satellites also carry magnetorquers or thrusters to dump momentum.</p>
+</div>
+<p>The real controller is three axes, quaternion based, and runs on the IMU's attitude estimate; this page shows one axis because that is where the physics is visible. Everything else in the project sits on top of this picture: the pyramid that turns three axis torque into four wheel commands, the firmware that puts those commands on a wire, and the bench that measured whether the model was right.</p>
 </section>
 
-<section class="sub">
+<section class="sub" id="pyramid">
+<h2>Four wheels, three axes</h2>
+<p>Three axes need three wheels; a fourth gives redundancy and lets the array share load. Tilted into a pyramid at a mounting angle from the base plane, each wheel contributes to two axes. A torque demand on the body is turned into four wheel torques by the pseudo-inverse of the geometry matrix, the allocation that minimizes the total wheel effort. Drag the demand and watch the split. Then move the mounting angle and watch the axis capacities trade against each other.</p>
+<div class="panel">
+  <div class="split">
+    <canvas id="pyr" aria-label="Four wheel pyramid"></canvas>
+    <canvas id="cap" aria-label="Axis torque capacity against mounting angle"></canvas>
+  </div>
+  <div class="controls" id="pyrctl"></div>
+  <div id="pyrro"></div>
+  <p class="hint">Drag on the pyramid to rotate the view. Null motion adds a pattern of wheel torques that cancels exactly, so the body feels nothing while the wheels redistribute momentum among themselves. That one dimensional null space is what four wheels buy over three.</p>
+</div>
+<p>Two angles fall out of the geometry, and the plot marks both. Where the pitch and roll capacity curve, 2 cos &beta;, crosses the yaw capacity curve, 4 sin &beta;, is 26.57&deg;, the angle at which every axis can be driven equally hard. Where the diagonal of the geometry matrix times its transpose balances, 2 cos<sup>2</sup> &beta; = 4 sin<sup>2</sup> &beta;, is 35.26&deg;, the angle that minimizes the worst case wheel effort. They answer different questions, and choosing a mounting angle means choosing which question you are asking.</p>
+</section>
+
+<section class="sub" id="latency">
+<h2>What 727 ms does to a control loop</h2>
+<p>The controller reads the IMU, computes a torque, sends it down an RS-422 link to the wheel, and the wheel's motor responds. Every step takes time, and a controller that acts on where the satellite <em>was</em> is a controller fighting itself. The combined communication and motor latency of the bench started at 727 ms and ended at 263 ms after the protocol and firmware work. Same plant, same gains, two delays.</p>
+<div class="panel">
+  <canvas id="lat" aria-label="Step response with loop delay"></canvas>
+  <div class="controls" id="latctl"></div>
+  <div class="btnrow" id="latrow"></div>
+  <p class="hint">Reference curves for 727 ms and 263 ms stay on the plot. The bright curve is your delay.</p>
+</div>
+<p>Delay does not change the plant, it removes phase margin. A derivative term is supposed to brake the motion; delayed, it brakes where the satellite was a moment ago, which is sometimes the wrong direction. Past a certain delay the loop cannot settle at all and hunts around the target for as long as you let it run. Cutting the latency by nearly two thirds was worth more than any gain tuning.</p>
+</section>
+
+<section class="sub" id="bench">
+<h2>The bench</h2>
+<p>None of this exists until the wheel can be commanded from a board. The test circuit I designed in KiCad and built puts an ESP32-S3 at the center: a nine axis IMU on I2C for attitude feedback, an RS-422 transceiver driving four wheel modules on a shared bus, a DC-DC buck converter for power, and safety interlocks in both hardware and software. Operator telemetry runs over a second transport back to a laptop.</p>
+<div class="panel">
+  <canvas id="blk" aria-label="Block diagram of the bench electronics"></canvas>
+  <p class="hint">Dots are traffic: IMU samples into the controller, command frames out to the wheels and their replies back, telemetry to the operator.</p>
+</div>
+<p>The firmware is around 10,000 lines of C and C++ across 30 modules: the RS-422 actuator protocol, the IMU driver, dual transport operator telemetry, and autonomous fault detection, isolation and recovery. The part I would point at first is the verification. I did not implement the wheel protocol from the specification and trust it. I captured the actual bytes on the wire with an oscilloscope and decoded them against an independent implementation, and the disagreements found four firmware defects, including memory corruption that put the controller in a reboot loop.</p>
+</section>
+
+<section class="sub" id="vmodel">
+<h2>From a model to a bench</h2>
+<div class="tiers">
+  <div class="tier"><b>Model in the loop</b><span>MATLAB and Simulink</span>Rigid body dynamics, quaternion control, pyramid torque allocation, sensor and motor dynamics, orbital disturbances. About 20,000 lines across 157 modules, with 100 testbenches.</div>
+  <div class="tier"><b>Software in the loop</b><span>the control law as C</span>The same controller compiled for the target and checked against the model before it ever touched hardware.</div>
+  <div class="tier"><b>On target</b><span>ESP32-S3</span>Firmware closing the loop through the real IMU and real wheels, with the wire protocol verified byte by byte.</div>
+  <div class="tier"><b>Hardware in the loop</b><span>air bearing stage</span>65 runs against a physical twin of the model. Where the two disagreed, the model was corrected, and the corrected model drove the sizing study.</div>
+</div>
+<p>The deliverable was an actuator sizing and trade study across 8 parameters, 12 metrics and 6 slewing maneuvers, written up in a 768 paragraph technical report with 21 tables and 40 figures, and an A1 conference poster.</p>
+<div class="stats">
+  <div class="stat"><b>727 → 263 ms</b><span>loop latency, before and after</span></div>
+  <div class="stat"><b>65</b><span>hardware in the loop runs</span></div>
+  <div class="stat"><b>20,000</b><span>lines of MATLAB, 157 modules, 100 testbenches</span></div>
+  <div class="stat"><b>10,000</b><span>lines of C and C++, 30 modules</span></div>
+  <div class="stat"><b>8 × 12 × 6</b><span>parameters, metrics, maneuvers in the trade study</span></div>
+</div>
+</section>
+
+<section class="sub" id="photos">
 <h2>Photographs</h2>
 <div class="figs">
 <figure><img src="office.jpg" alt="Bench setup at the Taiwan Space Agency" loading="lazy"><figcaption>The bench.</figcaption></figure>
-<figure><img src="poster-blurred.jpg" alt="Conference poster, technical detail blurred for confidentiality" loading="lazy"><figcaption>Conference poster, technical detail blurred.</figcaption></figure>
+<figure><img src="poster-blurred.jpg" alt="Conference poster, technical detail blurred for confidentiality" loading="lazy"><figcaption>The A1 poster, detail blurred.</figcaption></figure>
 <figure><img src="intro.jpg" alt="Introduction at the Taiwan Space Agency" loading="lazy"></figure>
 <figure><img src="presentation.jpg" alt="Online presentation" loading="lazy"></figure>
 </div>
+<p class="note">Specific project details are covered by confidentiality. Every simulation on this page is generic physics with made up inertias and gains; the only project numbers here are the ones already on my resume.</p>
 </section>
+
+<div class="next"><a href="../../#projects">All projects</a><a href="../nycu/">Next: decoding bits that moved</a></div>
 </main>
 <footer class="site-footer"></footer>
+
+<script>
+(function () {
+  const C = Site.colors;
+  const TAU = Math.PI * 2;
+  function wrap(a) { while (a > Math.PI) a -= TAU; while (a < -Math.PI) a += TAU; return a; }
+
+  /* One axis satellite with a reaction wheel. Body torque tb comes from the
+     wheel reaction, so Ib*dw/dt = tb + disturbance and Iw*dW/dt = -tb. */
+  const P = { Ib: 2.0, Iw: 0.02, Kp: 3.0, Kd: 2.6, tmax: 0.5, wmax: 400, dist: 0 };
+  const S = { th: 0, om: 0, W: 0, tgt: Math.PI / 2, t: 0, tb: 0, sat: false, hist: [] };
+  const HIST_T = 20;
+  function satStep(dt) {
+    const e = wrap(S.tgt - S.th);
+    let tb = P.Kp * e - P.Kd * S.om;
+    tb = Site.clamp(tb, -P.tmax, P.tmax);
+    const pushing = (-tb) * S.W > 0;
+    S.sat = Math.abs(S.W) >= P.wmax && pushing;
+    if (S.sat) tb = 0;
+    S.tb = tb;
+    S.om += (tb + P.dist) / P.Ib * dt;
+    S.W += (-tb) / P.Iw * dt;
+    S.W = Site.clamp(S.W, -P.wmax, P.wmax);
+    S.th += S.om * dt;
+    S.t += dt;
+  }
+  const satctl = document.getElementById('satctl');
+  const sKp = Site.slider(satctl, { label: 'Kp', min: 0.2, max: 8, step: 0.1, value: P.Kp, unit: 'N·m/rad', digits: 1, onInput: function (v) { P.Kp = v; } });
+  const sKd = Site.slider(satctl, { label: 'Kd', min: 0, max: 8, step: 0.1, value: P.Kd, unit: 'N·m·s', digits: 1, onInput: function (v) { P.Kd = v; } });
+  const sT = Site.slider(satctl, { label: 'torque limit', min: 0.05, max: 2, step: 0.05, value: P.tmax, unit: 'N·m', onInput: function (v) { P.tmax = v; } });
+  const sW = Site.slider(satctl, { label: 'wheel limit', min: 50, max: 600, step: 10, value: P.wmax, fmt: function (v) { return (v * 60 / TAU).toFixed(0) + ' rpm'; }, onInput: function (v) { P.wmax = v; } });
+  const sI = Site.slider(satctl, { label: 'body inertia', min: 0.5, max: 6, step: 0.1, value: P.Ib, unit: 'kg·m²', digits: 1, onInput: function (v) { P.Ib = v; } });
+  const sD = Site.slider(satctl, { label: 'disturbance', min: 0, max: 0.5, step: 0.01, value: 0, unit: 'N·m', onInput: function (v) { P.dist = v; } });
+  const satrow = document.getElementById('satrow');
+  function preset(o) { Object.assign(P, o); sKp.value = P.Kp; sKd.value = P.Kd; sT.value = P.tmax; sW.value = P.wmax; sI.value = P.Ib; sD.value = P.dist; S.W = 0; S.om = 0; }
+  Site.button(satrow, { label: 'Well damped', onClick: function () { preset({ Kp: 3, Kd: 2.6, tmax: 0.5, wmax: 400, Ib: 2, dist: 0 }); S.tgt = wrap(S.th + Math.PI / 2); } });
+  Site.button(satrow, { label: 'Too little damping', onClick: function () { preset({ Kp: 6, Kd: 0.6, tmax: 0.5, wmax: 400, Ib: 2, dist: 0 }); S.tgt = wrap(S.th + Math.PI / 2); } });
+  Site.button(satrow, { label: 'Saturate the wheel', onClick: function () { preset({ Kp: 3, Kd: 2.6, tmax: 0.5, wmax: 120, Ib: 2, dist: 0.3 }); } });
+  Site.button(satrow, { label: 'Slew 180°', primary: true, onClick: function () { S.tgt = wrap(S.th + Math.PI); } });
+  const satro = Site.readouts(document.getElementById('satro'), [
+    { key: 'err', label: 'heading error', color: 'amber' }, { key: 'rate', label: 'body rate', color: 'cyan' },
+    { key: 'W', label: 'wheel', color: 'pink' }, { key: 'tq', label: 'wheel torque' }, { key: 'H', label: 'body H + wheel H', color: 'green' }
+  ]);
+
+  const sat = Site.canvas(document.getElementById('sat'), { aspect: 0.9 });
+  function pickTarget(ev) {
+    const rect = sat.el.getBoundingClientRect();
+    const x = ev.clientX - rect.left - sat.w / 2;
+    const y = ev.clientY - rect.top - sat.h / 2;
+    if (Math.hypot(x, y) < 10) return;
+    S.tgt = Math.atan2(y, x) + Math.PI / 2;
+  }
+  let dragging = false;
+  sat.el.addEventListener('pointerdown', function (e) { dragging = true; pickTarget(e); e.preventDefault(); });
+  sat.el.addEventListener('pointermove', function (e) { if (dragging) pickTarget(e); });
+  window.addEventListener('pointerup', function () { dragging = false; });
+  sat.el.style.cursor = 'crosshair';
+  sat.el.style.touchAction = 'none';
+  function drawSat() {
+    const c = sat.ctx, w = sat.w, h = sat.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const cx = w / 2, cy = h / 2;
+    const R = Math.min(w, h) * 0.42;
+    c.strokeStyle = '#26304a';
+    c.lineWidth = 1;
+    c.beginPath();
+    c.arc(cx, cy, R, 0, TAU);
+    c.stroke();
+    c.font = '10px ' + Site.mono();
+    c.fillStyle = C.muted;
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    for (let d = 0; d < 360; d += 30) {
+      const a = d * Math.PI / 180 - Math.PI / 2;
+      c.fillText(String(d), cx + Math.cos(a) * (R + 14), cy + Math.sin(a) * (R + 14));
+    }
+    const ta = S.tgt - Math.PI / 2;
+    c.strokeStyle = C.amber;
+    c.setLineDash([4, 4]);
+    c.beginPath();
+    c.moveTo(cx, cy);
+    c.lineTo(cx + Math.cos(ta) * R, cy + Math.sin(ta) * R);
+    c.stroke();
+    c.setLineDash([]);
+    c.fillStyle = C.amber;
+    c.beginPath();
+    c.arc(cx + Math.cos(ta) * R, cy + Math.sin(ta) * R, 6, 0, TAU);
+    c.fill();
+    c.save();
+    c.translate(cx, cy);
+    c.rotate(S.th);
+    const b = R * 0.36;
+    c.fillStyle = '#1b2230';
+    c.strokeStyle = C.cyan;
+    c.lineWidth = 2;
+    c.fillRect(-b, -b, 2 * b, 2 * b);
+    c.strokeRect(-b, -b, 2 * b, 2 * b);
+    c.fillStyle = '#2b6a86';
+    c.fillRect(-b * 2.6, -b * 0.28, b * 1.5, b * 0.56);
+    c.fillRect(b * 1.1, -b * 0.28, b * 1.5, b * 0.56);
+    c.strokeStyle = '#4cc9f0';
+    for (let i = 1; i <= 4; i++) {
+      c.beginPath(); c.moveTo(-b * 2.6 + i * b * 0.3, -b * 0.28); c.lineTo(-b * 2.6 + i * b * 0.3, b * 0.28); c.stroke();
+      c.beginPath(); c.moveTo(b * 1.1 + i * b * 0.3, -b * 0.28); c.lineTo(b * 1.1 + i * b * 0.3, b * 0.28); c.stroke();
+    }
+    c.strokeStyle = C.white;
+    c.lineWidth = 3;
+    c.beginPath();
+    c.moveTo(0, -b);
+    c.lineTo(0, -b * 1.5);
+    c.stroke();
+    c.beginPath();
+    c.moveTo(-6, -b * 1.35); c.lineTo(0, -b * 1.5); c.lineTo(6, -b * 1.35);
+    c.stroke();
+    c.rotate(S.wheelAngle || 0);
+    c.strokeStyle = S.sat ? C.red : C.amber;
+    c.lineWidth = 3;
+    c.beginPath();
+    c.arc(0, 0, b * 0.62, 0, TAU);
+    c.stroke();
+    c.lineWidth = 2;
+    for (let i = 0; i < 4; i++) {
+      c.beginPath();
+      c.moveTo(0, 0);
+      c.lineTo(Math.cos(i * Math.PI / 2) * b * 0.62, Math.sin(i * Math.PI / 2) * b * 0.62);
+      c.stroke();
+    }
+    c.restore();
+    const Hb = P.Ib * S.om, Hw = P.Iw * S.W;
+    const scale = Math.max(1e-6, Math.max(Math.abs(Hb), Math.abs(Hw), 0.5));
+    const bx = 14, by = h - 44, bw = w - 28;
+    c.fillStyle = C.muted;
+    c.textAlign = 'left';
+    c.fillText('angular momentum: body (cyan) and wheel (amber)', bx, by - 10);
+    c.fillStyle = '#141a24';
+    c.fillRect(bx, by, bw, 8);
+    c.fillRect(bx, by + 12, bw, 8);
+    c.fillStyle = C.cyan;
+    const hb = Hb / scale * bw / 2;
+    c.fillRect(bx + bw / 2, by, hb, 8);
+    c.fillStyle = S.sat ? C.red : C.amber;
+    const hw = Hw / scale * bw / 2;
+    c.fillRect(bx + bw / 2, by + 12, hw, 8);
+    c.fillStyle = C.muted;
+    c.fillRect(bx + bw / 2 - 0.5, by - 2, 1, 24);
+    if (S.sat) {
+      c.fillStyle = C.red;
+      c.textAlign = 'center';
+      c.font = '600 12px ' + Site.sans();
+      c.fillText('wheel saturated', cx, cy + R + 2);
+    }
+  }
+  const satplot = Site.canvas(document.getElementById('satplot'), { aspect: 0.9 });
+  function drawSatPlot() {
+    const c = satplot.ctx, w = satplot.w, h = satplot.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const t0 = Math.max(0, S.t - HIST_T);
+    const p1 = new Site.Plot(c, { x: [t0, t0 + HIST_T], y: [-200, 200], box: { x: 44, y: 22, w: w - 56, h: h / 2 - 44 }, title: 'heading error, deg', xticks: [] });
+    const p2 = new Site.Plot(c, { x: [t0, t0 + HIST_T], y: [-P.wmax * 60 / TAU, P.wmax * 60 / TAU], box: { x: 44, y: h / 2 + 12, w: w - 56, h: h / 2 - 46 }, title: 'wheel speed, rpm', xlabel: 'seconds' });
+    p1.axes();
+    p2.axes();
+    if (S.hist.length > 1) {
+      p1.line(S.hist.map(function (q) { return [q[0], q[1]]; }), { color: C.amber, width: 2 });
+      p2.line(S.hist.map(function (q) { return [q[0], q[2]]; }), { color: C.pink, width: 2 });
+    }
+    p2.hline(P.wmax * 60 / TAU * 0.999, { color: C.red, label: 'limit' });
+    p2.hline(-P.wmax * 60 / TAU * 0.999, { color: C.red });
+  }
+  S.wheelAngle = 0;
+  const satLoop = Site.loop(sat.el, function (dt) {
+    const n = Math.max(1, Math.round(dt / 0.004));
+    const h = dt / n;
+    for (let i = 0; i < n; i++) satStep(h);
+    S.wheelAngle += S.W * dt * 0.08;
+    S.hist.push([S.t, wrap(S.tgt - S.th) * 180 / Math.PI, S.W * 60 / TAU]);
+    while (S.hist.length && S.hist[0][0] < S.t - HIST_T) S.hist.shift();
+    drawSat();
+    drawSatPlot();
+    satro.set('err', (wrap(S.tgt - S.th) * 180 / Math.PI).toFixed(1) + '°');
+    satro.set('rate', (S.om * 180 / Math.PI).toFixed(1) + ' °/s');
+    satro.set('W', (S.W * 60 / TAU).toFixed(0) + ' rpm');
+    satro.set('tq', S.tb.toFixed(2) + ' N·m');
+    satro.set('H', (P.Ib * S.om + P.Iw * S.W).toFixed(3) + (P.dist ? ' (disturbed)' : ''));
+  });
+  satLoop.start();
+
+  /* Pyramid allocation */
+  const Q = { beta: 30 * Math.PI / 180, tx: 0.5, ty: 0.2, tz: 0.3, nul: 0, yaw: 0.7, pitch: 0.5 };
+  function axes(beta) {
+    const cb = Math.cos(beta), sb = Math.sin(beta);
+    return [[cb, 0, sb], [0, cb, sb], [-cb, 0, sb], [0, -cb, sb]];
+  }
+  function allocate() {
+    const A = axes(Q.beta);
+    const cb = Math.cos(Q.beta), sb = Math.sin(Q.beta);
+    const d = [1 / (2 * cb * cb), 1 / (2 * cb * cb), 1 / (4 * sb * sb)];
+    const v = [Q.tx * d[0], Q.ty * d[1], Q.tz * d[2]];
+    const wv = A.map(function (a) { return a[0] * v[0] + a[1] * v[1] + a[2] * v[2]; });
+    const nul = [1, -1, 1, -1];
+    return wv.map(function (x, i) { return x + Q.nul * nul[i]; });
+  }
+  function bodyTorque(wv) {
+    const A = axes(Q.beta);
+    const t = [0, 0, 0];
+    for (let i = 0; i < 4; i++) for (let k = 0; k < 3; k++) t[k] += A[i][k] * wv[i];
+    return t;
+  }
+  const pyrctl = document.getElementById('pyrctl');
+  Site.slider(pyrctl, { label: 'mounting β', min: 5, max: 85, step: 0.5, value: 30, unit: '°', digits: 1, onInput: function (v) { Q.beta = v * Math.PI / 180; drawPyr(); drawCap(); } });
+  Site.slider(pyrctl, { label: 'roll τx', min: -1, max: 1, step: 0.01, value: Q.tx, onInput: function (v) { Q.tx = v; drawPyr(); } });
+  Site.slider(pyrctl, { label: 'pitch τy', min: -1, max: 1, step: 0.01, value: Q.ty, onInput: function (v) { Q.ty = v; drawPyr(); } });
+  Site.slider(pyrctl, { label: 'yaw τz', min: -1, max: 1, step: 0.01, value: Q.tz, onInput: function (v) { Q.tz = v; drawPyr(); } });
+  Site.slider(pyrctl, { label: 'null motion', min: -1, max: 1, step: 0.01, value: 0, onInput: function (v) { Q.nul = v; drawPyr(); } });
+  const pyrro = Site.readouts(document.getElementById('pyrro'), [
+    { key: 'w', label: 'wheel torques', color: 'amber' }, { key: 'max', label: 'largest', color: 'red' }, { key: 'chk', label: 'body torque back out', color: 'green' }
+  ]);
+  const pyr = Site.canvas(document.getElementById('pyr'), { aspect: 0.9 });
+  let pd = null;
+  pyr.el.addEventListener('pointerdown', function (e) { pd = [e.clientX, e.clientY, Q.yaw, Q.pitch]; e.preventDefault(); });
+  window.addEventListener('pointermove', function (e) { if (!pd) return; Q.yaw = pd[2] + (e.clientX - pd[0]) * 0.01; Q.pitch = Site.clamp(pd[3] + (e.clientY - pd[1]) * 0.01, -1.4, 1.4); drawPyr(); });
+  window.addEventListener('pointerup', function () { pd = null; });
+  pyr.el.style.cursor = 'grab';
+  pyr.el.style.touchAction = 'none';
+  function project(v, w, h) {
+    const cy = Math.cos(Q.yaw), sy = Math.sin(Q.yaw), cp = Math.cos(Q.pitch), sp = Math.sin(Q.pitch);
+    const x1 = v[0] * cy - v[1] * sy;
+    const y1 = v[0] * sy + v[1] * cy;
+    const z1 = v[2];
+    const y2 = y1 * cp - z1 * sp;
+    const z2 = y1 * sp + z1 * cp;
+    const s = Math.min(w, h) * 0.3;
+    return [w / 2 + x1 * s, h / 2 + 10 - z2 * s, y2];
+  }
+  function drawPyr() {
+    const c = pyr.ctx, w = pyr.w, h = pyr.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const wv = allocate();
+    const A = axes(Q.beta);
+    const cube = 0.35;
+    const corners = [];
+    for (let i = 0; i < 8; i++) corners.push([(i & 1 ? 1 : -1) * cube, (i & 2 ? 1 : -1) * cube, (i & 4 ? 1 : -1) * cube]);
+    c.strokeStyle = '#2e3a52';
+    c.lineWidth = 1;
+    for (let i = 0; i < 8; i++) for (let j = i + 1; j < 8; j++) {
+      const diff = (i ^ j);
+      if (diff !== 1 && diff !== 2 && diff !== 4) continue;
+      const a = project(corners[i], w, h), b = project(corners[j], w, h);
+      c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke();
+    }
+    const axisNames = [['x', [1.15, 0, 0], C.red], ['y', [0, 1.15, 0], C.green], ['z', [0, 0, 1.15], C.cyan]];
+    c.font = '11px ' + Site.mono();
+    axisNames.forEach(function (ax) {
+      const o = project([0, 0, 0], w, h), p = project(ax[1], w, h);
+      c.strokeStyle = ax[2];
+      c.setLineDash([2, 3]);
+      c.beginPath(); c.moveTo(o[0], o[1]); c.lineTo(p[0], p[1]); c.stroke();
+      c.setLineDash([]);
+      c.fillStyle = ax[2];
+      c.fillText(ax[0], p[0] + 4, p[1]);
+    });
+    const order = A.map(function (a, i) { return [project(a, w, h)[2], i]; }).sort(function (p, q) { return p[0] - q[0]; });
+    order.forEach(function (oi) {
+      const i = oi[1];
+      const a = A[i];
+      const o = project([0, 0, 0], w, h);
+      const tip = project([a[0] * 1.0, a[1] * 1.0, a[2] * 1.0], w, h);
+      c.strokeStyle = '#7d8798';
+      c.lineWidth = 1.5;
+      c.beginPath(); c.moveTo(o[0], o[1]); c.lineTo(tip[0], tip[1]); c.stroke();
+      let u = [-a[1], a[0], 0];
+      const un = Math.hypot(u[0], u[1]) || 1;
+      u = [u[0] / un, u[1] / un, 0];
+      const vv = [a[1] * u[2] - a[2] * u[1], a[2] * u[0] - a[0] * u[2], a[0] * u[1] - a[1] * u[0]];
+      const rad = 0.18;
+      c.beginPath();
+      for (let k = 0; k <= 24; k++) {
+        const ang = k / 24 * TAU;
+        const pt = [a[0] + rad * (Math.cos(ang) * u[0] + Math.sin(ang) * vv[0]), a[1] + rad * (Math.cos(ang) * u[1] + Math.sin(ang) * vv[1]), a[2] + rad * (Math.cos(ang) * u[2] + Math.sin(ang) * vv[2])];
+        const pp = project(pt, w, h);
+        if (k === 0) c.moveTo(pp[0], pp[1]); else c.lineTo(pp[0], pp[1]);
+      }
+      const mag = Math.abs(wv[i]);
+      c.fillStyle = wv[i] >= 0 ? 'rgba(255,182,72,' + (0.15 + 0.7 * Math.min(1, mag)) + ')' : 'rgba(76,201,240,' + (0.15 + 0.7 * Math.min(1, mag)) + ')';
+      c.strokeStyle = wv[i] >= 0 ? C.amber : C.cyan;
+      c.lineWidth = 2;
+      c.fill();
+      c.stroke();
+      const lab = project([a[0] * 1.35, a[1] * 1.35, a[2] * 1.35], w, h);
+      c.fillStyle = C.ink;
+      c.textAlign = 'center';
+      c.fillText('w' + (i + 1) + ' ' + wv[i].toFixed(2), lab[0], lab[1]);
+    });
+    const bx = 14, bw = w - 28, by = h - 52;
+    c.fillStyle = C.muted;
+    c.textAlign = 'left';
+    c.fillText('wheel torque commands (pseudo-inverse allocation)', bx, by - 8);
+    const cw = bw / 4;
+    let mx = 0;
+    for (let i = 0; i < 4; i++) {
+      const x = bx + i * cw + 6;
+      c.fillStyle = '#141a24';
+      c.fillRect(x, by, cw - 12, 30);
+      const f = Site.clamp(wv[i], -1.5, 1.5) / 1.5;
+      c.fillStyle = Math.abs(wv[i]) > 1 ? C.red : (wv[i] >= 0 ? C.amber : C.cyan);
+      c.fillRect(x + (cw - 12) / 2, by + 3, f * (cw - 12) / 2, 24);
+      c.fillStyle = C.muted;
+      c.fillRect(x + (cw - 12) / 2 - 0.5, by, 1, 30);
+      if (Math.abs(wv[i]) > mx) mx = Math.abs(wv[i]);
+    }
+    const bt = bodyTorque(wv);
+    pyrro.set('w', wv.map(function (x) { return x.toFixed(2); }).join('  '));
+    pyrro.set('max', mx.toFixed(2) + (mx > 1 ? ' (over a wheel limit of 1)' : ''));
+    pyrro.set('chk', '[' + bt.map(function (x) { return x.toFixed(2); }).join(', ') + ']');
+  }
+  const cap = Site.canvas(document.getElementById('cap'), { aspect: 0.9 });
+  function drawCap() {
+    const c = cap.ctx, w = cap.w, h = cap.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const p = new Site.Plot(c, { x: [0, 90], y: [0, 4.2], box: { x: 44, y: 22, w: w - 56, h: h - 62 }, title: 'axis torque capacity per unit wheel torque', xlabel: 'mounting angle β, degrees', xfmt: function (v) { return v + '°'; } });
+    p.axes();
+    const rp = [], yw = [], bal = [];
+    for (let d = 0; d <= 90; d += 0.5) {
+      const b = d * Math.PI / 180;
+      rp.push([d, 2 * Math.cos(b)]);
+      yw.push([d, 4 * Math.sin(b)]);
+      bal.push([d, Math.min(2 * Math.cos(b) * Math.cos(b), 4 * Math.sin(b) * Math.sin(b)) * 1.0]);
+    }
+    p.line(rp, { color: C.red, width: 2 });
+    p.line(yw, { color: C.cyan, width: 2 });
+    p.line(bal, { color: C.violet, width: 1.5, dash: [4, 3] });
+    p.vline(26.565, { color: C.ink, label: '26.57° equal capacity' });
+    p.vline(35.264, { color: C.violet, label: '35.26° balanced', dy: 14 });
+    const bd = Q.beta * 180 / Math.PI;
+    p.vline(bd, { color: C.amber, dash: [], width: 2 });
+    p.dot(bd, 2 * Math.cos(Q.beta), { color: C.red });
+    p.dot(bd, 4 * Math.sin(Q.beta), { color: C.cyan });
+    p.legend([{ label: 'pitch and roll, 2 cos β', color: C.red }, { label: 'yaw, 4 sin β', color: C.cyan }, { label: 'min diagonal of A·Aᵀ', color: C.violet }], { x: p.box.x + 10, y: p.box.y + p.box.h - 50 });
+  }
+  drawPyr();
+  drawCap();
+  pyr.onresize = drawPyr;
+  cap.onresize = drawCap;
+
+  /* Latency */
+  const LP = { Ib: 1.0, Kp: 4.0, Kd: 2.5, tmax: 1.0 };
+  function stepResponse(delay, T) {
+    const dt = 0.002;
+    const n = Math.round(T / dt);
+    const nd = Math.round(delay / dt);
+    const th = new Float64Array(n), om = new Float64Array(n);
+    const buf = new Float64Array(Math.max(1, nd + 1));
+    let x = 0, v = 0;
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const e = 1 - x;
+      let u = LP.Kp * e - LP.Kd * v;
+      u = Site.clamp(u, -LP.tmax, LP.tmax);
+      buf[i % buf.length] = u;
+      const ud = i >= nd ? buf[(i - nd) % buf.length] : 0;
+      v += ud / LP.Ib * dt;
+      x += v * dt;
+      th[i] = x; om[i] = v;
+      if (i % 5 === 0) out.push([i * dt, x]);
+    }
+    return out;
+  }
+  const latctl = document.getElementById('latctl');
+  const lD = Site.slider(latctl, { label: 'loop delay', min: 0, max: 1000, step: 1, value: 263, unit: 'ms', digits: 0, wide: true, onInput: drawLat });
+  const latrow = document.getElementById('latrow');
+  Site.button(latrow, { label: '727 ms, as found', onClick: function () { lD.value = 727; drawLat(); } });
+  Site.button(latrow, { label: '263 ms, after the work', primary: true, onClick: function () { lD.value = 263; drawLat(); } });
+  Site.button(latrow, { label: 'no delay', onClick: function () { lD.value = 0; drawLat(); } });
+  const lat = Site.canvas(document.getElementById('lat'), { aspect: 0.45 });
+  function drawLat() {
+    const c = lat.ctx, w = lat.w, h = lat.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const T = 20;
+    const p = new Site.Plot(c, { x: [0, T], y: [-0.6, 2.4], box: { x: 44, y: 22, w: w - 56, h: h - 60 }, title: 'step response, target = 1', xlabel: 'seconds' });
+    p.axes();
+    p.hline(1, { color: C.muted, label: 'target', align: 'left' });
+    p.line(stepResponse(0.727, T), { color: 'rgba(255,107,107,0.55)', width: 1.5 });
+    p.line(stepResponse(0.263, T), { color: 'rgba(140,233,154,0.6)', width: 1.5 });
+    p.line(stepResponse(lD.value / 1000, T), { color: C.amber, width: 2.5 });
+    p.legend([{ label: '727 ms', color: 'rgba(255,107,107,0.8)' }, { label: '263 ms', color: 'rgba(140,233,154,0.8)' }, { label: lD.value.toFixed(0) + ' ms', color: C.amber }], { x: p.box.x + p.box.w - 90, y: p.box.y + 12 });
+  }
+  drawLat();
+  lat.onresize = drawLat;
+
+  /* Bench block diagram */
+  const blk = Site.canvas(document.getElementById('blk'), { aspect: 0.5 });
+  const dots = [];
+  function drawBlk(t) {
+    const c = blk.ctx, w = blk.w, h = blk.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const boxes = {
+      mcu: { x: w * 0.40, y: h * 0.36, w: w * 0.20, h: h * 0.28, t: 'ESP32-S3', s: 'controller firmware' },
+      imu: { x: w * 0.06, y: h * 0.40, w: w * 0.20, h: h * 0.20, t: 'IMU', s: '9 axis, I2C' },
+      xcv: { x: w * 0.70, y: h * 0.40, w: w * 0.13, h: h * 0.20, t: 'RS-422', s: 'transceiver' },
+      pwr: { x: w * 0.40, y: h * 0.76, w: w * 0.20, h: h * 0.16, t: 'DC-DC buck', s: 'power' },
+      op: { x: w * 0.40, y: h * 0.04, w: w * 0.20, h: h * 0.16, t: 'operator', s: 'telemetry link' }
+    };
+    const wheels = [];
+    for (let i = 0; i < 4; i++) wheels.push({ x: w * 0.87, y: h * 0.10 + i * h * 0.21, w: w * 0.10, h: h * 0.14, t: 'wheel ' + (i + 1), s: '' });
+    function box(b, color) {
+      c.fillStyle = '#141a24';
+      c.strokeStyle = color || '#3a4661';
+      c.lineWidth = 1.5;
+      c.beginPath();
+      c.roundRect(b.x, b.y, b.w, b.h, 6);
+      c.fill();
+      c.stroke();
+      c.fillStyle = C.ink;
+      c.font = '600 12px ' + Site.sans();
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(b.t, b.x + b.w / 2, b.y + b.h / 2 - (b.s ? 7 : 0));
+      if (b.s) {
+        c.fillStyle = C.muted;
+        c.font = '10px ' + Site.mono();
+        c.fillText(b.s, b.x + b.w / 2, b.y + b.h / 2 + 8);
+      }
+    }
+    function mid(b) { return [b.x + b.w / 2, b.y + b.h / 2]; }
+    const links = [
+      ['imu', 'mcu', C.cyan, 0.9, 'I2C'], ['mcu', 'xcv', C.amber, 1.2, 'UART'], ['pwr', 'mcu', C.green, 0.4, ''], ['mcu', 'op', C.pink, 0.6, 'WiFi / BT']
+    ];
+    c.lineWidth = 2;
+    links.forEach(function (l) {
+      const a = mid(boxes[l[0]]), b = mid(boxes[l[1]]);
+      c.strokeStyle = '#2e3a52';
+      c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke();
+      if (l[4]) {
+        c.fillStyle = C.muted;
+        c.font = '10px ' + Site.mono();
+        c.textAlign = 'center';
+        c.fillText(l[4], (a[0] + b[0]) / 2, (a[1] + b[1]) / 2 - 8);
+      }
+    });
+    const busX = w * 0.855;
+    c.strokeStyle = '#2e3a52';
+    c.beginPath(); c.moveTo(boxes.xcv.x + boxes.xcv.w, h / 2); c.lineTo(busX, h / 2); c.stroke();
+    c.beginPath(); c.moveTo(busX, h * 0.17); c.lineTo(busX, h * 0.80); c.stroke();
+    wheels.forEach(function (wb) { c.beginPath(); c.moveTo(busX, wb.y + wb.h / 2); c.lineTo(wb.x, wb.y + wb.h / 2); c.stroke(); });
+    c.fillStyle = C.muted;
+    c.font = '10px ' + Site.mono();
+    c.textAlign = 'center';
+    c.fillText('shared RS-422 bus', busX - 40, h * 0.86);
+    for (const k in boxes) box(boxes[k], k === 'mcu' ? C.amber : null);
+    wheels.forEach(function (wb) { box(wb, '#3a4661'); });
+    if (Math.random() < 0.06) dots.push({ path: [mid(boxes.imu), mid(boxes.mcu)], s: 0, color: C.cyan });
+    if (Math.random() < 0.04) {
+      const wi = Math.floor(Math.random() * 4);
+      const wb = wheels[wi];
+      const p0 = mid(boxes.mcu), p1 = mid(boxes.xcv), p2 = [busX, h / 2], p3 = [busX, wb.y + wb.h / 2], p4 = [wb.x, wb.y + wb.h / 2];
+      dots.push({ path: [p0, p1, p2, p3, p4], s: 0, color: C.amber, reply: true });
+    }
+    if (Math.random() < 0.03) dots.push({ path: [mid(boxes.mcu), mid(boxes.op)], s: 0, color: C.pink });
+    for (let i = dots.length - 1; i >= 0; i--) {
+      const d = dots[i];
+      d.s += 0.9 * (1 / 60);
+      const segs = d.path.length - 1;
+      const u = d.s * segs;
+      const k = Math.min(segs - 1, Math.floor(u));
+      const f = u - k;
+      const a = d.path[k], b = d.path[k + 1];
+      c.fillStyle = d.color;
+      c.beginPath(); c.arc(a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, 4, 0, TAU); c.fill();
+      if (d.s >= 1) {
+        dots.splice(i, 1);
+        if (d.reply) dots.push({ path: d.path.slice().reverse(), s: 0, color: C.green });
+      }
+    }
+    void t;
+  }
+  const blkLoop = Site.loop(blk.el, function (dt, t) { drawBlk(t); });
+  blkLoop.start();
+})();
+</script>
 </body>
 </html>
