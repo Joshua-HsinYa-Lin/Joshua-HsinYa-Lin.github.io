@@ -43,7 +43,7 @@
   <div class="controls" id="kfctl"></div>
   <div class="btnrow" id="kfrow"></div>
   <div id="kfro"></div>
-  <p class="hint">Grey is the truth. Amber integrates the gyro alone and walks away. Cyan is the accelerometer alone. Green is the filter, with the bias it has learned in the lower plot. Shake it to see why the accelerometer needs a gate.</p>
+  <p class="hint">Grey is the truth. Amber integrates the gyro alone and walks away. Cyan is the accelerometer alone. Green is the filter, with the bias it has learned in the lower plot. Push the board sideways with the gate off and watch the accelerometer drag the estimate away; turn the gate on and push again.</p>
 </div>
 <p>The gate is the cheapest line in the whole design and the most valuable. An accelerometer measures specific force, not gravity, so when the board is being pushed the measurement is not pointing down and the update would actively corrupt the attitude. Comparing the vector's magnitude against one g and skipping the update when it is off costs one compare per sample. In the accelerator it is an opcode.</p>
 </section>
@@ -145,7 +145,7 @@
     const theta = K.moving ? A * Math.sin(2 * Math.PI * f * t) : 0;
     const omega = K.moving ? A * 2 * Math.PI * f * Math.cos(2 * Math.PI * f * t) : 0;
     const gyro = omega + K.bias + gauss() * K.gNoise;
-    const shakeA = S.t < K.shake ? 6 * Math.sin(2 * Math.PI * 4 * t) : 0;
+    const shakeA = S.t < K.shake ? 8 : 0;
     const g = 9.81;
     const ax = g * Math.sin(theta * D2R) + shakeA * Math.cos(theta * D2R) + gauss() * K.aNoise * 0.1;
     const az = g * Math.cos(theta * D2R) - shakeA * Math.sin(theta * D2R) + gauss() * K.aNoise * 0.1;
@@ -192,7 +192,7 @@
   const kfrow = document.getElementById('kfrow');
   Site.toggle(kfrow, { label: 'Accelerometer gate', value: true, onChange: function (v) { K.gate = v; } });
   Site.toggle(kfrow, { label: 'Board is moving', value: true, onChange: function (v) { K.moving = v; } });
-  Site.button(kfrow, { label: 'Shake it', primary: true, onClick: function () { K.shake = S.t + 2.0; } });
+  Site.button(kfrow, { label: 'Push it sideways for 2 s', primary: true, onClick: function () { K.shake = S.t + 2.0; } });
   Site.button(kfrow, { label: 'Restart', onClick: kfReset });
   const kfro = Site.readouts(document.getElementById('kfro'), [
     { key: 'g', label: 'gyro only rms', color: 'amber' }, { key: 'a', label: 'accel only rms', color: 'cyan' }, { key: 'k', label: 'filter rms', color: 'green' }, { key: 'b', label: 'bias estimate', color: 'pink' }, { key: 'gate', label: 'gate', color: 'red' }
