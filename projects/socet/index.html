@@ -137,19 +137,12 @@
 
 <section class="sub" id="riscv-sec">
 <h2>Now: a RISC-V system on chip</h2>
-<p>This semester the team is building a RISC-V system on chip targeted at an FPGA, and my block is the SPI controller that reads the inertial sensor. SPI is a four wire synchronous bus, and the whole design question for a controller is the two bits that define its mode: which clock level is idle, and which clock edge samples data. Pick a mode below and read the byte off the wires.</p>
-<div class="panel">
-  <canvas id="spi" aria-label="SPI waveforms"></canvas>
-  <div class="btnrow" id="spimode"></div>
-  <div class="controls" id="spictl"></div>
-  <p class="hint" id="spinote"></p>
-</div>
-<p>The connection back to the satellite work is direct: last summer the firmware read a nine axis IMU and ran quaternion attitude control in C on a microcontroller. Now the sensor read is a hardware block I am writing, one layer down.</p>
+<p>This semester the team is building a RISC-V system on chip with a Kalman filter accelerator, and my block is the SPI controller that reads the inertial sensor. That work has <a href="../socet-soc/index.html">its own page</a>: a Kalman filter you can watch, the packed covariance, the descriptor machine that runs the filter over a single multiplier, and the SPI bus explorer.</p>
 </section>
 
 <p class="note">Source for the matrix coprocessor is public at <a href="https://github.com/Joshua-HsinYa-Lin/socet-matrix-calculator" target="_blank" rel="noopener">github.com/Joshua-HsinYa-Lin/socet-matrix-calculator</a>. The emulator on this page ports its control FSM, memory module and module handshakes; values are kept as plain integers so results read in decimal.</p>
 
-<div class="next"><a href="../../#projects">All projects</a><a href="../tasa/">Next: pointing a satellite with spinning wheels</a></div>
+<div class="next"><a href="../../index.html#projects">All projects</a><a href="../socet-soc/index.html">Next: a Kalman filter in hardware</a></div>
 </main>
 <footer class="site-footer"></footer>
 
@@ -875,98 +868,6 @@
   }
   drawShift();
   void dimSel;
-
-  /* SPI */
-  const spi = Site.canvas(document.getElementById('spi'), { aspect: 0.42 });
-  let mode = 0;
-  const spictl = document.getElementById('spictl');
-  Site.select(document.getElementById('spimode'), { value: 0, options: [{ value: 0, label: 'Mode 0' }, { value: 1, label: 'Mode 1' }, { value: 2, label: 'Mode 2' }, { value: 3, label: 'Mode 3' }], onChange: function (v) { mode = v; drawSpi(); } });
-  const mosi = Site.slider(spictl, { label: 'MOSI byte', min: 0, max: 255, step: 1, value: 0xA5, fmt: function (v) { return '0x' + v.toString(16).toUpperCase().padStart(2, '0'); }, onInput: drawSpi });
-  const miso = Site.slider(spictl, { label: 'MISO byte', min: 0, max: 255, step: 1, value: 0x3C, fmt: function (v) { return '0x' + v.toString(16).toUpperCase().padStart(2, '0'); }, onInput: drawSpi });
-  function drawSpi() {
-    const c = spi.ctx, w = spi.w, h = spi.h;
-    const CPOL = mode >> 1, CPHA = mode & 1;
-    c.fillStyle = C.panel;
-    c.fillRect(0, 0, w, h);
-    const lx = 52;
-    const x0 = lx + 10;
-    const x1 = w - 10;
-    const bitW = (x1 - x0) / 10;
-    const rows = ['CS', 'SCLK', 'MOSI', 'MISO'];
-    const rh = (h - 26) / 4;
-    c.font = '11px ' + Site.mono();
-    c.textBaseline = 'middle';
-    function level(row, hi) { const y0 = 8 + row * rh + 6; const y1 = 8 + (row + 1) * rh - 8; return hi ? y0 : y1; }
-    rows.forEach(function (n, i) { c.fillStyle = C.muted; c.textAlign = 'right'; c.fillText(n, lx - 4, 8 + i * rh + rh / 2); });
-    c.lineWidth = 2;
-    c.strokeStyle = C.pink;
-    c.beginPath();
-    c.moveTo(x0, level(0, 1)); c.lineTo(x0 + bitW * 0.5, level(0, 1)); c.lineTo(x0 + bitW * 0.5, level(0, 0));
-    c.lineTo(x0 + bitW * 9.5, level(0, 0)); c.lineTo(x0 + bitW * 9.5, level(0, 1)); c.lineTo(x1, level(0, 1));
-    c.stroke();
-    const idle = CPOL;
-    c.strokeStyle = C.amber;
-    c.beginPath();
-    c.moveTo(x0, level(1, idle));
-    c.lineTo(x0 + bitW, level(1, idle));
-    for (let b = 0; b < 8; b++) {
-      const xs = x0 + bitW * (1 + b);
-      c.lineTo(xs, level(1, 1 - idle));
-      c.lineTo(xs + bitW / 2, level(1, 1 - idle));
-      c.lineTo(xs + bitW / 2, level(1, idle));
-      c.lineTo(xs + bitW, level(1, idle));
-    }
-    c.lineTo(x1, level(1, idle));
-    c.stroke();
-    const sampleAtFirstEdge = CPHA === 0;
-    function drawData(row, byte, color) {
-      c.strokeStyle = color;
-      c.beginPath();
-      let prev = 0;
-      c.moveTo(x0, level(row, 0));
-      for (let b = 0; b < 8; b++) {
-        const bit = (byte >> (7 - b)) & 1;
-        const xs = x0 + bitW * (1 + b) + (sampleAtFirstEdge ? -bitW / 2 : 0);
-        const xe = xs + bitW;
-        c.lineTo(xs, level(row, prev));
-        c.lineTo(xs, level(row, bit));
-        c.lineTo(xe, level(row, bit));
-        prev = bit;
-      }
-      c.lineTo(x1, level(row, prev));
-      c.stroke();
-      c.fillStyle = color;
-      c.textAlign = 'center';
-      for (let b = 0; b < 8; b++) {
-        const bit = (byte >> (7 - b)) & 1;
-        const xsamp = x0 + bitW * (1 + b) + bitW / 2 * (sampleAtFirstEdge ? 0 : 1);
-        c.fillStyle = C.white;
-        c.beginPath();
-        c.arc(xsamp, level(row, bit), 3.5, 0, Math.PI * 2);
-        c.fill();
-        c.fillStyle = color;
-        c.fillText(String(bit), xsamp, level(row, 1) - 10);
-      }
-    }
-    drawData(2, mosi.value, C.cyan);
-    drawData(3, miso.value, C.green);
-    c.strokeStyle = 'rgba(255,255,255,0.12)';
-    c.setLineDash([2, 4]);
-    c.lineWidth = 1;
-    for (let b = 0; b < 8; b++) {
-      const xsamp = x0 + bitW * (1 + b) + bitW / 2 * (sampleAtFirstEdge ? 0 : 1);
-      c.beginPath(); c.moveTo(xsamp, 8); c.lineTo(xsamp, h - 18); c.stroke();
-    }
-    c.setLineDash([]);
-    c.fillStyle = C.muted;
-    c.textAlign = 'left';
-    c.fillText('CPOL=' + CPOL + '  CPHA=' + CPHA + '   dots mark the sampling edge, MSB first', x0, h - 8);
-    document.getElementById('spinote').textContent =
-      'Mode ' + mode + ': the clock idles ' + (CPOL ? 'high' : 'low') + ' and data is sampled on the ' + (CPHA ? 'second' : 'first') + ' edge of each pulse, the ' +
-      ((CPOL ^ CPHA) ? 'falling' : 'rising') + ' edge. The controller shifts the next bit out on the opposite edge so it is stable when the peripheral samples.';
-  }
-  drawSpi();
-  spi.onresize = drawSpi;
 
   window.__socet = {
     get r() { return r; },

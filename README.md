@@ -7,6 +7,7 @@ canvas, and every curve is computed from the physics on the page.
 ## Layout
 
     index.html            home page, renders cards from the manifest
+    about/index.html      the written version: every entry with its figures
     shared/site.css       design tokens and components
     shared/site.js        canvas, animation loop, plotter, controls, seven segment digit
     projects/manifest.js  the registry: one entry per project, in display order

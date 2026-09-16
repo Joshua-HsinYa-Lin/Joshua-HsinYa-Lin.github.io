@@ -29,6 +29,35 @@ window.PROJECTS = [
     }
   },
   {
+    slug: 'socet-soc',
+    title: 'A Kalman filter in hardware',
+    status: 'in progress',
+    hook: 'A RISC-V system on chip with an attitude filter accelerator. Watch a Kalman filter fuse a gyro and an accelerometer, then see how the whole filter becomes a straight line of descriptors over one multiplier.',
+    when: 'Purdue SoCET · Fall 2026',
+    tags: ['RISC-V', 'Kalman filter', 'Fixed point', 'SPI'],
+    _s: { t: 0, th: 0, est: 0, bias: 0, pts: [] },
+    preview: function (ctx, w, h, t, dt) {
+      const s = this._s;
+      const truth = 0.35 * Math.sin(t * 1.1);
+      const meas = truth + (Math.random() - 0.5) * 0.5;
+      s.est += (meas - s.est) * 0.12;
+      s.pts.push([t, truth, meas, s.est]);
+      while (s.pts.length && s.pts[0][0] < t - 6) s.pts.shift();
+      const x0 = 14, x1 = w - 14, cy = h * 0.5, amp = h * 0.36;
+      function X(tt) { return x1 - (t - tt) / 6 * (x1 - x0); }
+      ctx.fillStyle = 'rgba(76,201,240,0.7)';
+      s.pts.forEach(function (p, i) { if (i % 3 === 0) { ctx.beginPath(); ctx.arc(X(p[0]), cy - p[2] * amp, 1.6, 0, Math.PI * 2); ctx.fill(); } });
+      ctx.strokeStyle = '#8a93a5'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1.5;
+      ctx.beginPath(); s.pts.forEach(function (p, i) { const x = X(p[0]), y = cy - p[1] * amp; if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.strokeStyle = '#8ce99a'; ctx.lineWidth = 2;
+      ctx.beginPath(); s.pts.forEach(function (p, i) { const x = X(p[0]), y = cy - p[3] * amp; if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }); ctx.stroke();
+      ctx.fillStyle = '#6f7a8c'; ctx.font = '10px ' + Site.mono();
+      ctx.fillText('noisy sensor · truth · filter estimate', 14, h - 10);
+      void dt;
+    }
+  },
+  {
     slug: 'tasa',
     title: 'Pointing a satellite with spinning wheels',
     hook: 'Spin a wheel one way and the body turns the other. Slew a satellite, split torque across a four wheel pyramid, and feel what 727 ms of latency does to a control loop.',

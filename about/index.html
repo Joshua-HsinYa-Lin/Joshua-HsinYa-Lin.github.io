@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>About — Hsin Ya Lin</title>
+<meta name="description" content="Hsin Ya Lin (Joshua), Purdue electrical engineering: experience, research, projects, education and skills.">
+<link rel="stylesheet" href="../shared/site.css">
+<script src="../shared/site.js"></script>
+<style>
+.entry { margin-bottom: 1.4rem; max-width: 72ch; }
+.entry-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+.role { font-weight: 600; }
+.date { color: var(--muted); font-size: 0.85rem; font-family: var(--mono); white-space: nowrap; }
+.entry ul { margin: 0.4rem 0 0; padding-left: 1.2rem; }
+.entry li { margin-bottom: 0.3rem; color: var(--ink2); }
+.entry .shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.8rem; margin-top: 0.8rem; }
+.entry .shots img { border: 1px solid var(--rule); border-radius: 8px; background: #fff; width: 100%; max-height: 360px; object-fit: contain; }
+.entry .more { font-size: 0.9rem; margin-top: 0.5rem; }
+.skill-line { margin: 0 0 0.5rem; max-width: 72ch; }
+.skill-label { font-weight: 600; font-family: var(--mono); font-size: 0.85rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<header class="site-header" data-root="../"></header>
+<main class="project">
+<section class="hero" style="padding-top: 0.4rem;">
+  <img src="../profile.jpg" alt="Photo of Hsin Ya Lin">
+  <div>
+    <h1>Hsin Ya Lin <span class="alias">(Joshua)</span></h1>
+    <p class="who">Electrical Engineering, Purdue University · B.S. expected December 2028 · Embedded systems, board-level hardware, and digital design</p>
+    <p class="links">
+      <a href="mailto:lin2082@purdue.edu">lin2082@purdue.edu</a>
+      <a href="https://www.linkedin.com/in/hsin-ya-lin-70349826a" target="_blank" rel="noopener">LinkedIn</a>
+      <a href="https://github.com/Joshua-HsinYa-Lin" target="_blank" rel="noopener">GitHub</a>
+    </p>
+  </div>
+</section>
+
+<p class="lede">The written version. Each entry links to its interactive page, where you can operate the thing rather than read about it.</p>
+
+<section class="sub">
+<h2>About</h2>
+<p>Electrical Engineering at Purdue, GPA 3.98/4.0, graduating December 2028. I build boards and write the firmware that runs on them, then bring them up on the bench. Most recently that meant designing the test hardware for a satellite reaction wheel at the Taiwan Space Agency and flying my own control code on it.</p>
+<p>Schematic capture and PCB layout in KiCad and Altium, board assembly and bring-up, embedded C and C++ on microcontrollers, SystemVerilog from RTL through to layout, and the MATLAB and Python modeling behind the control and signal-processing work. Looking for Summer 2027 internships in hardware, embedded, and digital design.</p>
+</section>
+
+<section class="sub">
+<h2>Work Experience</h2>
+
+<div class="entry">
+  <div class="entry-head"><span class="role">Satellite Electronics Intern, Taiwan Space Agency</span><span class="date">Jul 2026 to Aug 2026</span></div>
+  <ul>
+    <li>Designed the bench test board for reaction wheel validation in KiCad and built it, integrating an ESP32-S3 microcontroller, a 9-axis IMU over I2C, an RS422 transceiver, and a DC-DC buck converter with hardware and software safety interlocks.</li>
+    <li>Wrote 10,000 lines of embedded C and C++ attitude control firmware across 30 modules for an ESP32-S3, implementing the RS-422 actuator protocol, a BNO055 IMU driver, dual-transport operator telemetry, and autonomous fault detection, isolation and recovery. Cut combined communication and motor latency from 727 ms to 263 ms.</li>
+    <li>Verified the RS422 serial protocol byte by byte against oscilloscope-captured traffic, diagnosing four firmware defects including memory corruption behind a reboot loop.</li>
+    <li>Built a 20,000-line, 157-module MATLAB simulation with 100 testbenches covering rigid-body dynamics, quaternion control, pyramid torque allocation and orbital disturbances, then validated it against an air-bearing physical twin across 65 hardware-in-the-loop runs.</li>
+    <li>Delivered an actuator sizing and trade study across 8 parameters, 12 metrics and 6 slewing maneuvers, documented in a 768-paragraph technical report with 21 tables and 40 figures, plus an A1 conference poster.</li>
+    <li>Specific project details are covered by confidentiality.</li>
+  </ul>
+  <div class="shots">
+    <img src="../projects/tasa/office.jpg" alt="Bench setup at the Taiwan Space Agency" loading="lazy">
+    <img src="../projects/tasa/poster-blurred.jpg" alt="Conference poster, technical detail blurred for confidentiality" loading="lazy">
+  </div>
+  <p class="more"><a href="../projects/tasa/index.html">Interactive: pointing a satellite with spinning wheels</a></p>
+</div>
+
+<div class="entry">
+  <div class="entry-head"><span class="role">Research Intern, NYCU Institute of Communications</span><span class="date">May 2026 to Jul 2026</span></div>
+  <ul>
+    <li>Applied Transformer architectures to error-correction coding over synchronization-error channels, where an insertion or deletion shifts every following bit and classical decoders lose the position assumption they rest on.</li>
+    <li>Built three designs in PyTorch on CUDA: an autoregressive encoder-decoder, a Siamese encoder learning a 256-dimensional space where Euclidean distance tracks edit distance, and a CTC head decoding bits directly.</li>
+    <li>Cut edit-distance estimation error to 2.09 RMSE against 2.62 and 2.91 for the CGK and CNN-ED baselines, with BCJR as the classical reference, across 1M binary codewords on a 4.5 GB HDF5 dataset.</li>
+  </ul>
+  <p class="more"><a href="../projects/nycu/index.html">Interactive: decoding bits that moved</a></p>
+</div>
+
+<div class="entry">
+  <div class="entry-head"><span class="role">CS 159 Teaching Assistant, Purdue Computer Science</span><span class="date">Jan 2026 to May 2026</span></div>
+  <ul>
+    <li>Ran weekly C programming labs for 54 students, covering pointers, memory management, and the UNIX toolchain.</li>
+    <li>Diagnosed segmentation faults and memory errors with gdb in office hours, and reviewed student code against structured-programming standards.</li>
+  </ul>
+</div>
+</section>
+
+<section class="sub">
+<h2>Research</h2>
+
+<div class="entry">
+  <div class="entry-head"><span class="role">SoCET Team Member, Purdue Elmore Family School of Electrical and Computer Engineering</span><span class="date">Jan 2026 to present</span></div>
+  <ul>
+    <li>Built a matrix math coprocessor in SystemVerilog running on real FPGA hardware with keypad input and a seven-segment and LED display. Matrix operations are slow in software, so addition, multiplication, transposition and scalar multiplication move into hardware, the idea behind GPU and TPU accelerators.</li>
+    <li>Designed a main FSM sequencing input, matrix loading, operation select, calculation and output, with nested FSMs inside the arithmetic modules so a calculation runs across several clock cycles.</li>
+    <li>Split memory three ways for the two operands and the result, and separated memory addressing from operation control across two interface layers passing operands, dimensions and results on a valid, ready and done handshake.</li>
+    <li>Carried the design through an RTL-to-GDS flow: logic synthesis in Yosys, place and route, timing closure, and standard-cell layout in Virtuoso, with simulation in Icarus Verilog and waveform analysis in QuestaSim.</li>
+    <li>This semester: a RISC-V system on chip with a Kalman filter accelerator, targeted at an FPGA. My block is the SPI controller that reads the inertial sensor.</li>
+  </ul>
+  <p class="more"><a href="../projects/socet/index.html">Interactive: a matrix coprocessor on an FPGA</a> · <a href="../projects/socet-soc/index.html">Interactive: a Kalman filter in hardware</a></p>
+</div>
+
+<div class="entry">
+  <div class="entry-head"><span class="role">Undergraduate Research Assistant, Purdue TRACE Laboratory</span><span class="date">Jan 2026 to present</span></div>
+  <ul>
+    <li>Processed 3D ViCon motion-capture data in MATLAB to drive AnyBody simulations of spatial kinematics and inverse dynamics for human-robot interaction systems.</li>
+    <li>Extracted and analyzed per-joint forces and torques, comparing the assisted side against the unassisted side to quantify how much load a helper actually removes.</li>
+    <li>Tested whether AnyBody's residual Hand of God force was masking failed ground reaction force prediction, reporting R² 0.03 and cosine similarity 0.58 as evidence against the hypothesis across 10+ force and moment channels.</li>
+    <li>Consolidated a 16-module extraction, plotting and reporting workflow into a single pipeline with fallback path resolution that survives AnyBody changing its output layout.</li>
+    <li>Conducted a comparative literature analysis on control systems and non-linear control theory.</li>
+  </ul>
+  <div class="shots">
+    <img src="../projects/trace/grf-left-right.png" alt="Ground reaction force, left against right side" loading="lazy">
+    <img src="../projects/trace/single-vs-interaction.png" alt="Single-person against two-person interaction forces" loading="lazy">
+  </div>
+  <p class="more"><a href="../projects/trace/index.html">Interactive: how much of your weight does a helper carry?</a></p>
+</div>
+</section>
+
+<section class="sub">
+<h2>Technical Experience</h2>
+
+<div class="entry">
+  <div class="entry-head"><span class="role">Power and Hardware Team Developer, Purdue Lunabotics</span><span class="date">Sep 2025 to Aug 2026</span></div>
+  <ul>
+    <li>Designed a 24V, 20A six-cell battery sensing and protection board around the TI BQ77915 in KiCad, and verified the analog behavior in LTspice before committing to fabrication.</li>
+    <li>Laid the board out for fabrication, then hand-assembled and micro-soldered 50+ components onto the finished board.</li>
+    <li>Diagnosed voltage and thermal variances during bench testing to prevent system failure, and integrated the board into the rover power distribution system.</li>
+  </ul>
+  <div class="shots">
+    <img src="../projects/lunabotics/schematic.png" alt="Battery protection board schematic" loading="lazy">
+    <img src="../projects/lunabotics/board.jpg" alt="BQ77915 battery protection board" loading="lazy">
+  </div>
+  <p class="more"><a href="../projects/lunabotics/index.html">Interactive: the board that disconnects the battery</a></p>
+</div>
+
+<div class="entry">
+  <div class="entry-head"><span class="role">Power Electronics Design Projects, Purdue ECE 20007</span><span class="date">Jan 2026 to May 2026</span></div>
+  <ul>
+    <li>Designed, built and measured an adjustable DC-DC boost converter stepping a 5V input to a 5V to 30V range, sizing the switching duty cycle from the boost transfer function rather than tuning it empirically. A PMOS output ceiling limiter holds the rail under no load or a shorted load, a failure mode that otherwise destroys the output capacitors.</li>
+    <li>Reconciled measured output against LTspice by accounting for wire and breadboard resistance, component tolerance, and device on-resistance.</li>
+    <li>Designed a three-band analog audio equalizer with active RC filters, LM324 op-amp buffers placed to remove loading between the filter and volume stages, per-band inverting amplifiers for gain, and a power amplifier stage driving over 400 mW into 8 Ω.</li>
+  </ul>
+  <div class="shots">
+    <img src="../projects/ece20007/boost-schematic.png" alt="Boost converter schematic" loading="lazy">
+    <img src="../projects/ece20007/eq-schematic.png" alt="Three-band audio equalizer schematic" loading="lazy">
+  </div>
+  <p class="more"><a href="../projects/ece20007/index.html">Interactive: a boost converter and an equalizer</a></p>
+</div>
+
+<div class="entry">
+  <div class="entry-head"><span class="role">Electrical Team Lead, <a href="https://www.ckrobotics.org/The-team/leaders-mentors/leaders" target="_blank" rel="noopener">FIRST Robotics Team 8020</a></span><span class="date">Aug 2023 to Jun 2024</span></div>
+  <ul>
+    <li>Designed a modular power distribution scheme in which every subsystem meets the robot at a labeled connector, so an electrical fault isolates by disconnecting one function instead of tracing the whole harness.</li>
+    <li>Designed the electrical system for each season's competition robot in KiCad, and specified and crimped the harness across power, signal, CAN, network and pneumatic circuits, selecting connector type and wire gauge by current rating.</li>
+    <li>Calibrated and programmed CAN bus motor controllers driving brushless actuators and encoders, and integrated a multimodal sensor system of gyroscope, camera and color sensors into closed-loop control, with robot code written in LabVIEW.</li>
+    <li>Evaluated pneumatic control hardware against solenoid channel count, CAN compatibility and built-in protection, and documented the trade study.</li>
+  </ul>
+  <div class="shots">
+    <img src="../projects/frc8020/robot-2023.png" alt="Team 8020 competition robot, 2023 season" loading="lazy">
+  </div>
+  <p class="more"><a href="../projects/frc8020/index.html">Interactive: wiring a robot so a fault finds itself</a></p>
+</div>
+
+<div class="entry">
+  <div class="entry-head"><span class="role">Low Noise Amplifier, Purdue IEEE Microwave</span><span class="date">Fall 2026, in progress</span></div>
+  <ul>
+    <li>Joining the chapter's low noise amplifier design this semester, in Altium Designer. Nothing claimed until there is a design and a measurement.</li>
+  </ul>
+  <p class="more"><a href="../projects/lna/index.html">Why the first stage decides the noise</a></p>
+</div>
+</section>
+
+<section class="sub">
+<h2>Education</h2>
+<div class="entry">
+  <div class="entry-head"><span class="role">Purdue University, West Lafayette, Indiana</span><span class="date">Aug 2025 to Dec 2028, expected</span></div>
+  <p>Bachelor of Science in Electrical Engineering. GPA 3.98/4.0. Dean's List (2 semesters) and Semester Honors (2 semesters).</p>
+</div>
+</section>
+
+<section class="sub">
+<h2>Skills</h2>
+<p class="skill-line"><span class="skill-label">Languages</span><br>C, C++, MATLAB, SystemVerilog, Assembly, Python, JavaScript, Linux/Unix, git</p>
+<p class="skill-line"><span class="skill-label">Engineering tools</span><br>KiCad and Altium Designer (circuit design), LTspice (circuit analysis), Yosys / SimVision / GTKWave (digital design), Simulink (controls), Virtuoso (physical design), SolidWorks (3D CAD)</p>
+<p class="skill-line"><span class="skill-label">Technical</span><br>system design and verification, PCB design and manufacturing, FPGA prototyping</p>
+</section>
+
+<section class="sub">
+<h2>Contact</h2>
+<p>Email: <a href="mailto:lin2082@purdue.edu">lin2082@purdue.edu</a><br>
+LinkedIn: <a href="https://www.linkedin.com/in/hsin-ya-lin-70349826a" target="_blank" rel="noopener">hsin-ya-lin</a><br>
+GitHub: <a href="https://github.com/Joshua-HsinYa-Lin" target="_blank" rel="noopener">Joshua-HsinYa-Lin</a></p>
+</section>
+
+<div class="next"><a href="../index.html#projects">All projects</a></div>
+</main>
+<footer class="site-footer"></footer>
+</body>
+</html>

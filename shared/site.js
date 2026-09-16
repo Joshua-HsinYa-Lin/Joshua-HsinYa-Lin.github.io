@@ -11,10 +11,12 @@
     if (t) root.setAttribute('data-theme', t);
     else root.removeAttribute('data-theme');
   }
+  /* Light is the default regardless of the system setting; dark is opt in
+     through the header toggle and remembered per browser. */
   function currentTheme() {
     const s = root.getAttribute('data-theme');
     if (s) return s;
-    return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    return 'light';
   }
   try {
     const t = localStorage.getItem(THEME_KEY);
@@ -29,13 +31,14 @@
   Site.header = function () {
     const el = document.querySelector('header.site-header');
     if (!el) return;
-    const home = el.getAttribute('data-root') || './';
+    const rootPath = el.getAttribute('data-root') || './';
+    const home = rootPath + 'index.html';
     el.innerHTML =
       '<div class="bar">' +
       '<a class="brand" href="' + home + '">Hsin Ya Lin</a>' +
       '<nav>' +
       '<a href="' + home + '#projects">Projects</a>' +
-      '<a class="hide-sm" href="' + home + '#about">About</a>' +
+      '<a href="' + rootPath + 'about/index.html">About</a>' +
       '<a class="hide-sm" href="https://github.com/Joshua-HsinYa-Lin" target="_blank" rel="noopener">GitHub</a>' +
       '<button class="theme" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">&#9680;</button>' +
       '</nav></div>';

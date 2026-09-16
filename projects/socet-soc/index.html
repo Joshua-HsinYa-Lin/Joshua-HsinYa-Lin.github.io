@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A Kalman filter in hardware — Hsin Ya Lin</title>
+<meta name="description" content="A RISC-V system on chip with an attitude filter accelerator. Watch a Kalman filter fuse a gyro and an accelerometer, then see how the filter becomes a straight line of descriptors over a single multiplier.">
+<link rel="stylesheet" href="../../shared/site.css">
+<script src="../../shared/site.js"></script>
+<style>
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
+@media (max-width: 760px) { .split { grid-template-columns: 1fr; } }
+.ops { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.35rem; font-family: var(--mono); font-size: 0.78rem; margin: 0.8rem 0; }
+.ops span { background: var(--bg2); border: 1px solid var(--rule); border-radius: 6px; padding: 0.25rem 0.5rem; color: var(--ink2); }
+.ops span b { color: var(--accent); }
+.tri { display: grid; grid-template-columns: auto 1fr; gap: 1rem; align-items: start; }
+.trigrid { display: grid; grid-template-columns: repeat(6, 34px); gap: 3px; }
+.trigrid div { width: 34px; height: 34px; display: grid; place-items: center; font-family: var(--mono); font-size: 0.72rem; border-radius: 5px; background: #141a24; color: var(--panel-muted); cursor: default; }
+.trigrid div.up { background: #1f2a3d; color: var(--panel-ink); }
+.trigrid div.hot { background: var(--amber); color: #1a1200; font-weight: 700; }
+.trigrid div.mirror { outline: 2px solid var(--amber); }
+.triout { font-family: var(--mono); font-size: 0.85rem; line-height: 1.7; color: var(--panel-ink); white-space: pre; }
+.triout b { color: var(--amber); }
+.mine { border: 1px solid var(--accent); border-radius: 10px; padding: 0.7rem 0.9rem; background: var(--bg2); max-width: 68ch; }
+.mine b { color: var(--accent); }
+</style>
+</head>
+<body>
+<header class="site-header" data-root="../../"></header>
+<main class="project">
+<div class="kicker">Purdue SoCET · Chip Design Project · in progress</div>
+<h1>A Kalman filter in hardware</h1>
+<div class="when">Fall 2026 · West Lafayette, Indiana</div>
+<p class="lede">This semester the team is building a RISC-V system on chip on an FPGA: an RV32I core with the multiply extension, an on-chip bus of our own, SRAM, a UART back to a host, an SPI controller that reads a six axis inertial sensor, and an accelerator that turns gyro and accelerometer samples into an attitude quaternion without the CPU touching the math. The question the chip exists to answer is what moving the filter into hardware buys, in cycles, power and area, against running it in software on the same core.</p>
+<div class="mine"><b>My block is the SPI controller</b> that reads the sensor. The team works so that every member knows every part, so this page walks the whole chip, and it is honest about which numbers are design budgets rather than measurements. Nothing here has been measured on silicon yet.</div>
+<div class="tags"><span>RISC-V</span><span>SystemVerilog</span><span>Kalman filter</span><span>Fixed point</span><span>SPI</span><span>UART</span><span>Memory mapped IO</span><span>FPGA</span></div>
+
+<section class="sub" id="kf">
+<h2>Watch a Kalman filter work</h2>
+<p>A gyroscope tells you how fast you are turning, so integrating it gives an angle, but it has a bias and the integral drifts. An accelerometer tells you which way is down, so it gives an angle directly, but it is noisy and any time you actually accelerate it lies. A Kalman filter keeps a running estimate of the angle and the gyro bias with a covariance saying how sure it is, predicts with the gyro, corrects with the accelerometer, and weights the correction by how much each side deserves to be trusted. This is the one axis version of what the accelerator computes in three.</p>
+<div class="panel">
+  <canvas id="kfcv" aria-label="Angle estimates against time"></canvas>
+  <div class="controls" id="kfctl"></div>
+  <div class="btnrow" id="kfrow"></div>
+  <div id="kfro"></div>
+  <p class="hint">Grey is the truth. Amber integrates the gyro alone and walks away. Cyan is the accelerometer alone. Green is the filter, with the bias it has learned in the lower plot. Shake it to see why the accelerometer needs a gate.</p>
+</div>
+<p>The gate is the cheapest line in the whole design and the most valuable. An accelerometer measures specific force, not gravity, so when the board is being pushed the measurement is not pointing down and the update would actively corrupt the attitude. Comparing the vector's magnitude against one g and skipping the update when it is off costs one compare per sample. In the accelerator it is an opcode.</p>
+</section>
+
+<section class="sub" id="state">
+<h2>Seven numbers, six errors, twenty one covariances</h2>
+<p>The real filter estimates a unit quaternion and three gyro biases. A quaternion has four numbers but only three degrees of freedom, so filtering it directly makes the covariance singular. The design keeps the quaternion as a nominal state that is never filtered, and runs the Kalman filter on a six element error state, three small angles and three bias errors, injecting the correction back into the quaternion by multiplication rather than addition. That is the multiplicative extended Kalman filter, and it is why the covariance is 6 by 6 rather than 7 by 7.</p>
+<p>Six by six is 36 words, but the matrix is symmetric, so the accelerator stores 21 and addresses them through a packed triangular index: a six entry row offset table plus one addition, no multiplier. Hover the matrix.</p>
+<div class="panel">
+  <div class="tri">
+    <div class="trigrid" id="trigrid"></div>
+    <div class="triout" id="triout"></div>
+  </div>
+</div>
+<p>The other structural saving is the update. Because the three accelerometer axes are independent, the measurement noise matrix is diagonal, and a diagonal noise matrix means the three measurements can be folded in one at a time. Each scalar update needs a reciprocal, not a matrix inverse, so there is no matrix inverse anywhere in the design. The reciprocal and the inverse square root that normalizes the quaternion both come from Newton-Raphson iterations that borrow the one multiplier.</p>
+</section>
+
+<section class="sub" id="ucode">
+<h2>A straight line of descriptors over one multiplier</h2>
+<p>The accelerator is not a small CPU. It runs a fixed program of descriptors, fetched from a ROM once per filter step, with no branches. Each descriptor names an operation, two source banks with base addresses and strides, a destination, loop bounds for four hardware loop counters, and a shift to apply on writeback. An address generator walks the loops one product per cycle into a 16 by 16 multiplier with a 48 bit accumulator. A matrix multiply is one descriptor. The whole extended Kalman filter step is about 35 of them.</p>
+<div class="ops">
+  <span><b>MAC</b> C[i][j] = Σ A·B</span><span><b>MACN</b> subtract into C</span><span><b>VADD</b> C = A + B</span><span><b>VSUB</b> C = A − B</span><span><b>VSCL</b> vector × scalar</span><span><b>COPY</b> C = A</span><span><b>ZERO</b> C = 0</span><span><b>RECIP</b> 1/A, Newton-Raphson</span><span><b>RSQRT</b> 1/√A, Newton-Raphson</span><span><b>QMUL</b> quaternion product, 16 MACs from a pattern ROM</span><span><b>SKEW</b> scatter a 3-vector into a skew matrix</span><span><b>GRAV</b> gravity direction from a quaternion</span><span><b>GATE</b> accelerometer validity test</span>
+</div>
+<div class="panel">
+  <div class="btnrow" id="dsel" style="margin-top:0"></div>
+  <canvas id="dcv" aria-label="Descriptor execution over memory banks"></canvas>
+  <div class="btnrow" id="drow"></div>
+  <div class="controls" id="dctl"></div>
+  <div id="dro"></div>
+  <p class="hint">Simplified address generation: reads from bank A in amber and bank B in cyan, the accumulating destination in green. Triangular destinations skip the lower half, which is where the 21 of 36 saving lives.</p>
+</div>
+<p>The reason a descriptor machine beats a general processor here is that every loop count and every stride is known at design time. The state is six long, the measurement three, the quaternion four, so the program is the same every step and the counters can be hardware. What it costs is placement discipline: each scratchpad is a single port block RAM, so a descriptor can read at most two distinct banks for its operands, and the microprogram is arranged so that the accumulating operations find their operands in the two port register files.</p>
+</section>
+
+<section class="sub" id="fixed">
+<h2>Sixteen bits is not enough for everything</h2>
+<p>The datapath is 16 bit fixed point. That is plenty for a quaternion and for sensor samples. It is not plenty for the covariance, and the reason is a number the design has to face before the multiplier width is frozen: the process noise added each step is about seven decades smaller than the steady state covariance it is added to. Sixteen bits hold under five decades. Put both in one format and the process noise lands below the least significant bit, the addition does nothing, the covariance shrinks every step, the gain goes to zero, and the filter stops listening to the accelerometer while looking perfectly healthy. The covariance is 32 bit for that reason, and the descriptor format carries separate wide flags for each operand so a wide covariance can multiply a narrow vector.</p>
+<div class="panel">
+  <canvas id="rangecv" aria-label="Dynamic range of covariance against process noise"></canvas>
+  <p class="hint">Design arithmetic from the sensor's rate noise density at a 1 kHz sample rate. Where the process noise lands relative to each word's least significant bit is the whole argument.</p>
+</div>
+<p>The second fixed point trap is rounding. Truncation always rounds the same way, so its error accumulates in proportion to the number of steps rather than its square root, and a slow rotation can round back to zero every step so the attitude never moves and the bias becomes unobservable. The design rounds to nearest and adds first order error feedback on the quaternion writeback. Try a small increment repeated many times under each rule.</p>
+<div class="panel">
+  <canvas id="rndcv" aria-label="Accumulated rounding error under three rules"></canvas>
+  <div class="controls" id="rndctl"></div>
+</div>
+</section>
+
+<section class="sub" id="chip">
+<h2>The chip around it</h2>
+<div class="panel">
+  <canvas id="chipcv" aria-label="System on chip block diagram"></canvas>
+</div>
+<p>The CPU runs a C program compiled for RISC-V. It configures the sensor over SPI, reads samples as they arrive, hands them to the accelerator through memory mapped registers, and streams the quaternion and bias out over UART to a host that compares them against a golden model. The same program with the filter in software gives the baseline the accelerator is measured against: cycle count per sample, and the power and area the block costs on the FPGA.</p>
+<p>The sensor is a six axis part rather than a nine axis one, and that was a decision rather than a default. Its noise is documented, which makes synthetic test data tractable; one device keeps the SPI controller to a single peripheral; and a magnetometer's zero gauss offset of around one gauss would swamp the heading over long timesteps for no gain in the quantity we are validating.</p>
+</section>
+
+<section class="sub" id="spi">
+<h2>My block: the SPI controller</h2>
+<p>SPI is a four wire synchronous bus, and the whole design question for a controller is the two bits that define its mode: which clock level is idle and which edge samples data. The sensor uses mode 3, clock idle high and data sampled on the rising edge. The first thing that runs on real hardware is a read of the sensor's identity register, because one transaction proves wiring, polarity, bit order and chip select together. Pick a mode and read the byte off the wires.</p>
+<div class="panel">
+  <canvas id="spicv" aria-label="SPI waveforms"></canvas>
+  <div class="btnrow" id="spimode"></div>
+  <div class="controls" id="spictl"></div>
+  <p class="hint" id="spinote"></p>
+</div>
+<p>The thread back to the satellite work is direct. Last summer the firmware read a nine axis IMU over I2C and ran quaternion attitude control in C on a microcontroller, and I verified the actuator protocol by decoding bytes on the wire against an independent implementation. Now the sensor read is a hardware block, verified the same way against a bus functional model of the sensor, one layer down.</p>
+</section>
+
+<section class="sub" id="status">
+<h2>Where it stands</h2>
+<p>Written: the accelerator RTL as a set of modules, the sequencer, address generator, multiply accumulate, Newton-Raphson divide unit, register files, scratchpads, bus interface and top level state machine; the microprogram; the specification these pages summarize; an assumption register that lists every assumption in the design with how to check it; and a verification plan for the UART, the SPI controller and the accelerator, written before the RTL so the RTL had something to be wrong against. Not yet: the measured comparison. Cycle, power and area numbers on this page are budgets from the spec, and they will be replaced by measurements when the chip runs.</p>
+<div class="stats">
+  <div class="stat"><b>6</b><span>error states: 3 attitude, 3 bias</span></div>
+  <div class="stat"><b>21</b><span>covariance words instead of 36</span></div>
+  <div class="stat"><b>1</b><span>multiplier, shared with the divide unit</span></div>
+  <div class="stat"><b>~35</b><span>descriptors per filter step</span></div>
+</div>
+</section>
+
+<div class="next"><a href="../../index.html#projects">All projects</a><a href="../tasa/index.html">Next: pointing a satellite with spinning wheels</a></div>
+</main>
+<footer class="site-footer"></footer>
+
+<script>
+(function () {
+  const C = Site.colors;
+  const D2R = Math.PI / 180;
+
+  /* One axis tilt filter: state [angle, gyro bias], gyro predicts, accelerometer corrects. */
+  const K = { dt: 0.005, gNoise: 0.5, aNoise: 3.0, bias: 2.0, qTheta: 0.05, qBias: 0.02, rDeg: 3.0, gate: true, tol: 0.15, moving: true, shake: 0 };
+  const S = { t: 0, theta: 0, thG: 0, x: [0, 0], P: [[100, 0], [0, 100]], hist: [], kgain: 0, rejected: false, err: { g: 0, a: 0, k: 0, n: 0 } };
+  const HIST = 12;
+  function gauss() { let u = 0, v = 0; while (u === 0) u = Math.random(); while (v === 0) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+  function kfStep() {
+    const dt = K.dt;
+    const t = S.t;
+    const A = 30, f = 0.15;
+    const theta = K.moving ? A * Math.sin(2 * Math.PI * f * t) : 0;
+    const omega = K.moving ? A * 2 * Math.PI * f * Math.cos(2 * Math.PI * f * t) : 0;
+    const gyro = omega + K.bias + gauss() * K.gNoise;
+    const shakeA = S.t < K.shake ? 6 * Math.sin(2 * Math.PI * 4 * t) : 0;
+    const g = 9.81;
+    const ax = g * Math.sin(theta * D2R) + shakeA * Math.cos(theta * D2R) + gauss() * K.aNoise * 0.1;
+    const az = g * Math.cos(theta * D2R) - shakeA * Math.sin(theta * D2R) + gauss() * K.aNoise * 0.1;
+    const accAngle = Math.atan2(ax, az) / D2R;
+    const mag = Math.hypot(ax, az);
+    S.thG += gyro * dt;
+    const x = S.x, P = S.P;
+    x[0] += (gyro - x[1]) * dt;
+    const p00 = P[0][0] - dt * (P[1][0] + P[0][1]) + dt * dt * P[1][1] + K.qTheta * dt;
+    const p01 = P[0][1] - dt * P[1][1];
+    const p11 = P[1][1] + K.qBias * dt;
+    P[0][0] = p00; P[0][1] = p01; P[1][0] = p01; P[1][1] = p11;
+    const rejected = K.gate && Math.abs(mag - g) / g > K.tol;
+    S.rejected = rejected;
+    if (!rejected) {
+      const R = K.rDeg * K.rDeg;
+      const s = P[0][0] + R;
+      const k0 = P[0][0] / s, k1 = P[1][0] / s;
+      const innov = accAngle - x[0];
+      x[0] += k0 * innov;
+      x[1] += k1 * innov;
+      const n00 = (1 - k0) * P[0][0], n01 = (1 - k0) * P[0][1];
+      const n10 = P[1][0] - k1 * P[0][0], n11 = P[1][1] - k1 * P[0][1];
+      P[0][0] = n00; P[0][1] = n01; P[1][0] = n10; P[1][1] = n11;
+      S.kgain = k0;
+    }
+    S.theta = theta;
+    S.t += dt;
+    S.hist.push([S.t, theta, S.thG, accAngle, x[0], x[1], S.kgain, rejected ? 1 : 0]);
+    while (S.hist.length && S.hist[0][0] < S.t - HIST) S.hist.shift();
+    S.err.g += (S.thG - theta) * (S.thG - theta);
+    S.err.a += (accAngle - theta) * (accAngle - theta);
+    S.err.k += (x[0] - theta) * (x[0] - theta);
+    S.err.n++;
+  }
+  function kfReset() { S.t = 0; S.thG = 0; S.x = [0, 0]; S.P = [[100, 0], [0, 100]]; S.hist = []; S.err = { g: 0, a: 0, k: 0, n: 0 }; K.shake = 0; }
+  const kfctl = document.getElementById('kfctl');
+  Site.slider(kfctl, { label: 'gyro bias', min: -10, max: 10, step: 0.1, value: 2, unit: '°/s', digits: 1, onInput: function (v) { K.bias = v; } });
+  Site.slider(kfctl, { label: 'gyro noise', min: 0, max: 3, step: 0.05, value: 0.5, unit: '°/s', onInput: function (v) { K.gNoise = v; } });
+  Site.slider(kfctl, { label: 'accel noise', min: 0, max: 10, step: 0.1, value: 3, digits: 1, onInput: function (v) { K.aNoise = v; } });
+  Site.slider(kfctl, { label: 'trust accel R', min: 0.5, max: 15, step: 0.1, value: 3, unit: '°', digits: 1, onInput: function (v) { K.rDeg = v; } });
+  Site.slider(kfctl, { label: 'process Q', min: 0.001, max: 0.5, step: 0.001, value: 0.05, digits: 3, onInput: function (v) { K.qTheta = v; } });
+  Site.slider(kfctl, { label: 'gate tol', min: 0.02, max: 0.5, step: 0.01, value: 0.15, fmt: function (v) { return (v * 100).toFixed(0) + ' % of g'; }, onInput: function (v) { K.tol = v; } });
+  const kfrow = document.getElementById('kfrow');
+  Site.toggle(kfrow, { label: 'Accelerometer gate', value: true, onChange: function (v) { K.gate = v; } });
+  Site.toggle(kfrow, { label: 'Board is moving', value: true, onChange: function (v) { K.moving = v; } });
+  Site.button(kfrow, { label: 'Shake it', primary: true, onClick: function () { K.shake = S.t + 2.0; } });
+  Site.button(kfrow, { label: 'Restart', onClick: kfReset });
+  const kfro = Site.readouts(document.getElementById('kfro'), [
+    { key: 'g', label: 'gyro only rms', color: 'amber' }, { key: 'a', label: 'accel only rms', color: 'cyan' }, { key: 'k', label: 'filter rms', color: 'green' }, { key: 'b', label: 'bias estimate', color: 'pink' }, { key: 'gate', label: 'gate', color: 'red' }
+  ]);
+  const kfcv = Site.canvas(document.getElementById('kfcv'), { aspect: 0.62 });
+  function drawKf() {
+    const c = kfcv.ctx, w = kfcv.w, h = kfcv.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const t0 = Math.max(0, S.t - HIST);
+    const p1 = new Site.Plot(c, { x: [t0, t0 + HIST], y: [-60, 60], box: { x: 44, y: 22, w: w - 56, h: h * 0.55 - 30 }, title: 'tilt angle, degrees', xticks: [] });
+    const p2 = new Site.Plot(c, { x: [t0, t0 + HIST], y: [-12, 12], box: { x: 44, y: h * 0.55 + 12, w: w - 56, h: h * 0.45 - 48 }, title: 'gyro bias, °/s: true and estimated', xlabel: 'seconds' });
+    p1.axes(); p2.axes();
+    const hs = S.hist;
+    if (hs.length > 1) {
+      let segStart = null;
+      for (let i = 0; i < hs.length; i++) {
+        if (hs[i][7] && segStart === null) segStart = hs[i][0];
+        if ((!hs[i][7] || i === hs.length - 1) && segStart !== null) {
+          const b = p1.box;
+          c.fillStyle = 'rgba(255,107,107,0.12)';
+          c.fillRect(p1.px(segStart), b.y, Math.max(1, p1.px(hs[i][0]) - p1.px(segStart)), b.h);
+          segStart = null;
+        }
+      }
+      p1.line(hs.map(function (q) { return [q[0], q[3]]; }), { color: 'rgba(76,201,240,0.55)', width: 1 });
+      p1.line(hs.map(function (q) { return [q[0], q[2]]; }), { color: C.amber, width: 1.5 });
+      p1.line(hs.map(function (q) { return [q[0], q[1]]; }), { color: '#8a93a5', width: 2, dash: [5, 4] });
+      p1.line(hs.map(function (q) { return [q[0], q[4]]; }), { color: C.green, width: 2 });
+      p2.hline(K.bias, { color: '#8a93a5', label: 'true bias' });
+      p2.line(hs.map(function (q) { return [q[0], q[5]]; }), { color: C.pink, width: 2 });
+    }
+    p1.legend([{ label: 'truth', color: '#8a93a5' }, { label: 'gyro integrated', color: C.amber }, { label: 'accelerometer', color: C.cyan }, { label: 'Kalman filter', color: C.green }], { x: p1.box.x + 10, y: p1.box.y + 12 });
+  }
+  const kfLoop = Site.loop(kfcv.el, function (dt) {
+    const n = Math.max(1, Math.round(dt / K.dt));
+    for (let i = 0; i < n; i++) kfStep();
+    drawKf();
+    const N = Math.max(1, S.err.n);
+    kfro.set('g', Math.sqrt(S.err.g / N).toFixed(1) + '°');
+    kfro.set('a', Math.sqrt(S.err.a / N).toFixed(1) + '°');
+    kfro.set('k', Math.sqrt(S.err.k / N).toFixed(1) + '°');
+    kfro.set('b', S.x[1].toFixed(2) + ' °/s');
+    kfro.set('gate', K.gate ? (S.rejected ? 'REJECTING' : 'passing') : 'off');
+  });
+  kfLoop.start();
+
+  /* Packed triangular index */
+  const ROWOFF = [0, 6, 11, 15, 18, 20];
+  const grid = document.getElementById('trigrid');
+  const triout = document.getElementById('triout');
+  const cells = [];
+  for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) {
+    const d = document.createElement('div');
+    if (j >= i) { d.className = 'up'; d.textContent = String(ROWOFF[i] + (j - i)); } else d.textContent = '·';
+    d.addEventListener('mouseenter', function () { showTri(i, j); });
+    d.addEventListener('click', function () { showTri(i, j); });
+    grid.appendChild(d);
+    cells.push(d);
+  }
+  function showTri(i, j) {
+    const lo = Math.min(i, j), hi = Math.max(i, j);
+    const idx = ROWOFF[lo] + (hi - lo);
+    cells.forEach(function (d, k) { d.classList.toggle('hot', k === lo * 6 + hi); d.classList.toggle('mirror', k === hi * 6 + lo && i !== j); });
+    triout.innerHTML = 'P[' + i + '][' + j + ']\n' +
+      'lo = min(i, j) = ' + lo + '   hi = max(i, j) = ' + hi + '\n' +
+      'index = rowoff[' + lo + '] + (hi − lo)\n' +
+      '      = ' + ROWOFF[lo] + ' + ' + (hi - lo) + '\n' +
+      '      = <b>' + idx + '</b>   of 21 words\n\n' +
+      'rowoff = [0, 6, 11, 15, 18, 20]\n' + (i !== j ? 'the mirror cell shares the word' : 'diagonal');
+  }
+  showTri(1, 4);
+
+  /* Descriptor player, simplified address generation */
+  const DESCS = [
+    { name: 'P = T · Fᵀ  covariance, MAC, TRI_C', op: 'MAC', bounds: { p: 1, i: 6, j: 6, k: 6 }, tri: true,
+      a: { label: 'bank A: T (6×6)', n: 36, addr: function (p, i, j, k) { return i * 6 + k; } },
+      b: { label: 'bank A: F (6×6)', n: 36, addr: function (p, i, j, k) { return j * 6 + k; } },
+      c: { label: 'bank A: P packed (21)', n: 21, addr: function (p, i, j) { return ROWOFF[Math.min(i, j)] + Math.abs(i - j); } } },
+    { name: 'v = P · hᵀ  MAC, TRI_A read, sparse h', op: 'MAC', bounds: { p: 1, i: 6, j: 1, k: 3 }, tri: false,
+      a: { label: 'bank A: P packed (21)', n: 21, addr: function (p, i, j, k) { return ROWOFF[Math.min(i, k)] + Math.abs(i - k); } },
+      b: { label: 'regfile: h (3)', n: 3, addr: function (p, i, j, k) { return k; } },
+      c: { label: 'bank B: v (6)', n: 6, addr: function (p, i, j) { return i; } } },
+    { name: 'q = q ⊗ dq  QMUL, pattern ROM', op: 'QMUL', bounds: { p: 1, i: 4, j: 1, k: 4 }, tri: false,
+      pat: [[[0, 0, 1], [1, 1, -1], [2, 2, -1], [3, 3, -1]], [[0, 1, 1], [1, 0, 1], [2, 3, 1], [3, 2, -1]], [[0, 2, 1], [1, 3, -1], [2, 0, 1], [3, 1, 1]], [[0, 3, 1], [1, 2, 1], [2, 1, -1], [3, 0, 1]]],
+      a: { label: 'regfile: q (4)', n: 4, addr: function (p, i, j, k) { return DESCS[2].pat[i][k][0]; } },
+      b: { label: 'bank B: dq (4)', n: 4, addr: function (p, i, j, k) { return DESCS[2].pat[i][k][1]; } },
+      c: { label: 'regfile: q (4)', n: 4, addr: function (p, i, j) { return i; } } },
+    { name: 'k = v · (1/s)  VSCL', op: 'VSCL', bounds: { p: 1, i: 6, j: 1, k: 1 }, tri: false,
+      a: { label: 'bank B: v (6)', n: 6, addr: function (p, i) { return i; } },
+      b: { label: 'regfile: 1/s (1)', n: 1, addr: function () { return 0; } },
+      c: { label: 'vecreg: k (6)', n: 6, addr: function (p, i) { return i; } } }
+  ];
+  const DS = { d: 0, p: 0, i: 0, j: 0, k: 0, cycle: 0, done: false, running: true, speed: 6, acc: 0, wrote: -1 };
+  function dsReset() { DS.p = 0; DS.i = 0; DS.j = 0; DS.k = 0; DS.cycle = 0; DS.done = false; DS.wrote = -1; }
+  function dsStep() {
+    if (DS.done) return;
+    const d = DESCS[DS.d];
+    const B = d.bounds;
+    DS.cycle++;
+    DS.wrote = -1;
+    if (DS.k + 1 >= B.k) {
+      DS.wrote = d.c.addr(DS.p, DS.i, DS.j);
+      DS.k = 0;
+      let nj = DS.j + 1;
+      let ni = DS.i;
+      if (nj >= B.j) { nj = 0; ni++; }
+      if (d.tri && ni < B.i) { while (nj < ni) nj++; if (nj >= B.j) { nj = 0; ni++; while (ni < B.i && ni > B.j - 1) ni++; } }
+      if (d.tri && ni < B.i && nj < ni) nj = ni;
+      DS.i = ni; DS.j = nj;
+      if (DS.i >= B.i) { DS.i = 0; DS.j = 0; DS.p++; if (DS.p >= B.p) DS.done = true; }
+    } else DS.k++;
+  }
+  const dsel = document.getElementById('dsel');
+  Site.select(dsel, { value: 0, options: DESCS.map(function (d, i) { return { value: i, label: d.name.split('  ')[0] }; }), onChange: function (v) { DS.d = v; dsReset(); } });
+  const drow = document.getElementById('drow');
+  const runB = Site.button(drow, { label: 'Pause', onClick: function (b) { DS.running = !DS.running; b.textContent = DS.running ? 'Pause' : 'Run'; } });
+  Site.button(drow, { label: 'Step', onClick: function () { DS.running = false; runB.textContent = 'Run'; dsStep(); } });
+  Site.button(drow, { label: 'Restart', onClick: dsReset });
+  Site.slider(document.getElementById('dctl'), { label: 'speed', min: 1, max: 60, step: 1, value: 6, digits: 0, unit: 'cyc/frame', wide: true, onInput: function (v) { DS.speed = v; } });
+  const dro = Site.readouts(document.getElementById('dro'), [
+    { key: 'op', label: 'descriptor', color: 'amber' }, { key: 'ctr', label: 'p i j k', color: 'cyan' }, { key: 'cyc', label: 'cycle', color: 'green' }, { key: 'st', label: '' }
+  ]);
+  const dcv = Site.canvas(document.getElementById('dcv'), { height: 250 });
+  function drawDesc() {
+    const c = dcv.ctx, w = dcv.w, h = dcv.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const d = DESCS[DS.d];
+    const banks = [[d.a, C.amber, 'read A'], [d.b, C.cyan, 'read B'], [d.c, C.green, 'write C']];
+    const lx = 16, rowH = (h - 30) / 3;
+    c.font = '11px ' + Site.mono();
+    c.textBaseline = 'middle';
+    banks.forEach(function (bk, r) {
+      const y = 12 + r * rowH;
+      const cellW = Math.min(40, (w - lx - 16) / bk[0].n);
+      c.fillStyle = C.muted;
+      c.textAlign = 'left';
+      c.fillText(bk[2] + ' · ' + bk[0].label, lx, y + 8);
+      let cur = -1;
+      if (!DS.done) {
+        if (r === 0) cur = bk[0].addr(DS.p, DS.i, DS.j, DS.k);
+        else if (r === 1) cur = bk[0].addr(DS.p, DS.i, DS.j, DS.k);
+        else cur = DS.wrote >= 0 ? DS.wrote : bk[0].addr(DS.p, DS.i, DS.j);
+      }
+      for (let i = 0; i < bk[0].n; i++) {
+        const x = lx + i * cellW;
+        const hot = i === cur;
+        const pending = r === 2 && !DS.done && DS.wrote < 0 && i === cur;
+        c.fillStyle = hot ? (pending ? 'rgba(140,233,154,0.35)' : bk[1]) : '#141a24';
+        c.fillRect(x, y + 20, cellW - 3, rowH - 34);
+        if (cellW >= 22) {
+          c.fillStyle = hot ? '#0c0f15' : C.muted;
+          c.textAlign = 'center';
+          c.fillText(String(i), x + (cellW - 3) / 2, y + 20 + (rowH - 34) / 2);
+        }
+      }
+    });
+  }
+  const dLoop = Site.loop(dcv.el, function () {
+    if (DS.running) for (let i = 0; i < DS.speed; i++) dsStep();
+    drawDesc();
+    const d = DESCS[DS.d];
+    dro.set('op', d.op + '  ' + d.name.split('  ')[1]);
+    dro.set('ctr', DS.p + ' ' + DS.i + ' ' + DS.j + ' ' + DS.k);
+    dro.set('cyc', String(DS.cycle));
+    dro.set('st', DS.done ? 'done, ' + DS.cycle + ' cycles' : 'running');
+  });
+  dLoop.start();
+
+  /* Dynamic range */
+  const rangecv = Site.canvas(document.getElementById('rangecv'), { height: 170 });
+  function drawRange() {
+    const c = rangecv.ctx, w = rangecv.w, h = rangecv.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const p = new Site.Plot(c, { x: [1e-13, 1e-3], y: [0, 1], box: { x: 24, y: 40, w: w - 40, h: 40 }, xlog: true, yticks: [], xfmt: function (v) { return '1e' + Math.round(Math.log10(v)); } });
+    p.axes();
+    const marks = [[4.4e-12, 'process noise Q per step', C.red, -22], [8e-5, 'steady state covariance P', C.green, -22], [3.05e-5, '16 bit Q1.15 LSB', C.amber, 62], [4.66e-10, '32 bit Q1.31 LSB', C.cyan, 62]];
+    marks.forEach(function (m) {
+      const X = p.px(m[0]);
+      c.strokeStyle = m[2];
+      c.lineWidth = 2;
+      c.beginPath(); c.moveTo(X, p.box.y); c.lineTo(X, p.box.y + p.box.h); c.stroke();
+      c.fillStyle = m[2];
+      c.font = '11px ' + Site.mono();
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(m[1], Site.clamp(X, 90, w - 90), p.box.y + m[3]);
+    });
+    c.fillStyle = C.muted;
+    c.font = '11px ' + Site.mono();
+    c.textAlign = 'center';
+    c.fillText('seven decades between Q and P. A 16 bit word spans under five, so Q falls below its LSB and vanishes.', w / 2, h - 12);
+  }
+  drawRange();
+  rangecv.onresize = drawRange;
+
+  /* Rounding rules */
+  const RC = { inc: 0.3, n: 2000 };
+  const rndctl = document.getElementById('rndctl');
+  Site.slider(rndctl, { label: 'increment', min: 0.02, max: 2, step: 0.01, value: 0.3, unit: 'LSB', onInput: function (v) { RC.inc = v; drawRnd(); } });
+  Site.slider(rndctl, { label: 'steps', min: 100, max: 5000, step: 50, value: 2000, digits: 0, onInput: function (v) { RC.n = v; drawRnd(); } });
+  const rndcv = Site.canvas(document.getElementById('rndcv'), { aspect: 0.42 });
+  function drawRnd() {
+    const c = rndcv.ctx, w = rndcv.w, h = rndcv.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const inc = RC.inc, n = RC.n;
+    let exact = 0, trunc = 0, round = 0, fb = 0, err = 0;
+    const T = [], R = [], F = [], E = [];
+    for (let i = 1; i <= n; i++) {
+      exact += inc;
+      trunc = Math.floor(trunc + inc);
+      round = Math.round(round + inc);
+      const want = fb + inc + err;
+      const got = Math.round(want);
+      err = want - got;
+      fb = got;
+      if (i % Math.max(1, Math.floor(n / 300)) === 0) { T.push([i, trunc]); R.push([i, round]); F.push([i, fb]); E.push([i, exact]); }
+    }
+    const ymax = Math.max(1, exact * 1.1);
+    const p = new Site.Plot(c, { x: [0, n], y: [0, ymax], box: { x: 50, y: 22, w: w - 62, h: h - 58 }, title: 'accumulated value in LSBs after adding the same small increment every step', xlabel: 'steps' });
+    p.axes();
+    p.line(E, { color: '#8a93a5', width: 2, dash: [5, 4] });
+    p.line(T, { color: C.red, width: 2 });
+    p.line(R, { color: C.amber, width: 2 });
+    p.line(F, { color: C.green, width: 2 });
+    p.legend([{ label: 'exact', color: '#8a93a5' }, { label: 'truncate: ' + (trunc - exact).toFixed(0) + ' LSB behind', color: C.red }, { label: 'round to nearest: ' + (round - exact).toFixed(1) + ' LSB off', color: C.amber }, { label: 'round with error feedback: ' + (fb - exact).toFixed(2) + ' LSB off', color: C.green }], { x: p.box.x + 10, y: p.box.y + 12 });
+  }
+  drawRnd();
+  rndcv.onresize = drawRnd;
+
+  /* Chip block diagram */
+  const chipcv = Site.canvas(document.getElementById('chipcv'), { aspect: 0.5 });
+  function drawChip() {
+    const c = chipcv.ctx, w = chipcv.w, h = chipcv.h;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    function box(x, y, bw, bh, t, s, color, fill) {
+      c.fillStyle = fill || '#141a24';
+      c.strokeStyle = color || '#3a4661';
+      c.lineWidth = 1.5;
+      c.beginPath(); c.roundRect(x, y, bw, bh, 6); c.fill(); c.stroke();
+      c.fillStyle = C.ink;
+      c.font = '600 12px ' + Site.sans();
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(t, x + bw / 2, y + bh / 2 - (s ? 7 : 0));
+      if (s) { c.fillStyle = C.muted; c.font = '10px ' + Site.mono(); c.fillText(s, x + bw / 2, y + bh / 2 + 8); }
+    }
+    const busY = h * 0.5;
+    c.fillStyle = '#1f2a3d';
+    c.fillRect(w * 0.06, busY - 9, w * 0.72, 18);
+    c.fillStyle = C.ink;
+    c.font = '600 11px ' + Site.mono();
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText('on-chip data bus · memory mapped IO', w * 0.42, busY);
+    const top = [[w * 0.08, 'RISC-V CPU', 'RV32I + Zmmul'], [w * 0.30, 'SRAM', 'program + data'], [w * 0.52, 'UART', 'to host']];
+    const bot = [[w * 0.08, 'KF accelerator', 'attitude filter'], [w * 0.30, 'SPI controller', 'mode 3, my block'], [w * 0.52, 'config / status', 'registers']];
+    const bw = w * 0.19, bh = h * 0.22;
+    top.forEach(function (b) { box(b[0], h * 0.08, bw, bh, b[1], b[2]); c.strokeStyle = '#3a4661'; c.lineWidth = 2; c.beginPath(); c.moveTo(b[0] + bw / 2, h * 0.08 + bh); c.lineTo(b[0] + bw / 2, busY - 9); c.stroke(); });
+    bot.forEach(function (b, i) { box(b[0], h * 0.66, bw, bh, b[1], b[2], i === 1 ? C.amber : (i === 0 ? C.green : null), i === 1 ? '#2a2410' : null); c.strokeStyle = '#3a4661'; c.lineWidth = 2; c.beginPath(); c.moveTo(b[0] + bw / 2, h * 0.66); c.lineTo(b[0] + bw / 2, busY + 9); c.stroke(); });
+    box(w * 0.80, h * 0.62, w * 0.17, h * 0.3, 'IMU', '6 axis, SPI', C.cyan);
+    c.strokeStyle = C.cyan; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(w * 0.30 + bw, h * 0.77); c.lineTo(w * 0.80, h * 0.77); c.stroke();
+    box(w * 0.80, h * 0.08, w * 0.17, bh, 'host', 'golden model');
+    c.strokeStyle = C.pink;
+    c.beginPath(); c.moveTo(w * 0.52 + bw, h * 0.19); c.lineTo(w * 0.80, h * 0.19); c.stroke();
+    c.fillStyle = C.muted;
+    c.font = '10px ' + Site.mono();
+    c.textAlign = 'left';
+    c.fillText('FPGA', w * 0.06, h * 0.97 - 4);
+  }
+  drawChip();
+  chipcv.onresize = drawChip;
+
+  /* SPI */
+  const spi = Site.canvas(document.getElementById('spicv'), { aspect: 0.42 });
+  let mode = 3;
+  const spictl = document.getElementById('spictl');
+  Site.select(document.getElementById('spimode'), { value: 3, options: [{ value: 0, label: 'Mode 0' }, { value: 1, label: 'Mode 1' }, { value: 2, label: 'Mode 2' }, { value: 3, label: 'Mode 3, the sensor' }], onChange: function (v) { mode = v; drawSpi(); } });
+  const mosi = Site.slider(spictl, { label: 'MOSI byte', min: 0, max: 255, step: 1, value: 0x8F, fmt: function (v) { return '0x' + v.toString(16).toUpperCase().padStart(2, '0'); }, onInput: drawSpi });
+  const miso = Site.slider(spictl, { label: 'MISO byte', min: 0, max: 255, step: 1, value: 0x6C, fmt: function (v) { return '0x' + v.toString(16).toUpperCase().padStart(2, '0'); }, onInput: drawSpi });
+  function drawSpi() {
+    const c = spi.ctx, w = spi.w, h = spi.h;
+    const CPOL = mode >> 1, CPHA = mode & 1;
+    c.fillStyle = C.panel;
+    c.fillRect(0, 0, w, h);
+    const lx = 52, x0 = lx + 10, x1 = w - 10;
+    const bitW = (x1 - x0) / 10;
+    const rows = ['CS', 'SCLK', 'MOSI', 'MISO'];
+    const rh = (h - 26) / 4;
+    c.font = '11px ' + Site.mono();
+    c.textBaseline = 'middle';
+    function level(row, hi) { const y0 = 8 + row * rh + 6; const y1 = 8 + (row + 1) * rh - 8; return hi ? y0 : y1; }
+    rows.forEach(function (n, i) { c.fillStyle = C.muted; c.textAlign = 'right'; c.fillText(n, lx - 4, 8 + i * rh + rh / 2); });
+    c.lineWidth = 2;
+    c.strokeStyle = C.pink;
+    c.beginPath();
+    c.moveTo(x0, level(0, 1)); c.lineTo(x0 + bitW * 0.5, level(0, 1)); c.lineTo(x0 + bitW * 0.5, level(0, 0));
+    c.lineTo(x0 + bitW * 9.5, level(0, 0)); c.lineTo(x0 + bitW * 9.5, level(0, 1)); c.lineTo(x1, level(0, 1));
+    c.stroke();
+    const idle = CPOL;
+    c.strokeStyle = C.amber;
+    c.beginPath();
+    c.moveTo(x0, level(1, idle));
+    c.lineTo(x0 + bitW, level(1, idle));
+    for (let b = 0; b < 8; b++) {
+      const xs = x0 + bitW * (1 + b);
+      c.lineTo(xs, level(1, 1 - idle)); c.lineTo(xs + bitW / 2, level(1, 1 - idle)); c.lineTo(xs + bitW / 2, level(1, idle)); c.lineTo(xs + bitW, level(1, idle));
+    }
+    c.lineTo(x1, level(1, idle));
+    c.stroke();
+    const first = CPHA === 0;
+    function drawData(row, byte, color) {
+      c.strokeStyle = color;
+      c.beginPath();
+      let prev = 0;
+      c.moveTo(x0, level(row, 0));
+      for (let b = 0; b < 8; b++) {
+        const bit = (byte >> (7 - b)) & 1;
+        const xs = x0 + bitW * (1 + b) + (first ? -bitW / 2 : 0);
+        c.lineTo(xs, level(row, prev)); c.lineTo(xs, level(row, bit)); c.lineTo(xs + bitW, level(row, bit));
+        prev = bit;
+      }
+      c.lineTo(x1, level(row, prev));
+      c.stroke();
+      for (let b = 0; b < 8; b++) {
+        const bit = (byte >> (7 - b)) & 1;
+        const xsamp = x0 + bitW * (1 + b) + bitW / 2 * (first ? 0 : 1);
+        c.fillStyle = C.white; c.beginPath(); c.arc(xsamp, level(row, bit), 3.5, 0, Math.PI * 2); c.fill();
+        c.fillStyle = color; c.textAlign = 'center'; c.fillText(String(bit), xsamp, level(row, 1) - 10);
+      }
+    }
+    drawData(2, mosi.value, C.cyan);
+    drawData(3, miso.value, C.green);
+    c.strokeStyle = 'rgba(255,255,255,0.12)';
+    c.setLineDash([2, 4]);
+    c.lineWidth = 1;
+    for (let b = 0; b < 8; b++) { const xsamp = x0 + bitW * (1 + b) + bitW / 2 * (first ? 0 : 1); c.beginPath(); c.moveTo(xsamp, 8); c.lineTo(xsamp, h - 18); c.stroke(); }
+    c.setLineDash([]);
+    c.fillStyle = C.muted;
+    c.textAlign = 'left';
+    c.fillText('CPOL=' + CPOL + '  CPHA=' + CPHA + '   dots mark the sampling edge, MSB first. 0x8F is a read of the identity register.', x0, h - 8);
+    document.getElementById('spinote').textContent =
+      'Mode ' + mode + ': the clock idles ' + (CPOL ? 'high' : 'low') + ' and data is sampled on the ' + (CPHA ? 'second' : 'first') + ' edge of each pulse, the ' + ((CPOL ^ CPHA) ? 'falling' : 'rising') + ' edge. The controller shifts the next bit out on the opposite edge so it is stable when the peripheral samples.' + (mode === 3 ? ' This is what the sensor expects.' : '');
+  }
+  drawSpi();
+  spi.onresize = drawSpi;
+})();
+</script>
+</body>
+</html>
