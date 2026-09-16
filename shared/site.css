@@ -60,7 +60,9 @@ p { margin: 0 0 0.9rem; }
   position: sticky;
   top: 0;
   z-index: 20;
+  background: var(--bg);
   background: color-mix(in srgb, var(--bg) 88%, transparent);
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--rule);
 }
@@ -153,14 +155,17 @@ main { max-width: var(--max); margin: 0 auto; padding: 1.5rem 1rem 4rem; }
 }
 .ctl { display: grid; grid-template-columns: 5.6em 1fr 5.4em; align-items: center; gap: 0.5rem; font-size: 0.88rem; }
 .ctl .ctl-label { color: var(--panel-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ctl input[type="range"] { width: 100%; accent-color: var(--amber); margin: 0; }
+.ctl input[type="range"] { width: 100%; accent-color: var(--amber); margin: 0; min-height: 28px; }
 .ctl output { font-family: var(--mono); color: var(--amber); text-align: right; font-size: 0.85rem; white-space: nowrap; }
 .ctl.wide { grid-column: 1 / -1; }
 
 .btnrow { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.7rem; align-items: center; }
+button, input[type="range"], .card a.wrap { touch-action: manipulation; }
+.panel canvas { touch-action: pan-y; }
 .btn {
   font: inherit;
   font-size: 0.88rem;
+  min-height: 36px;
   border: 1px solid var(--panel-rule);
   background: #151b26;
   color: var(--panel-ink);
@@ -206,7 +211,7 @@ figcaption { color: var(--muted); font-size: 0.86rem; margin-top: 0.4rem; max-wi
 .steps li::before { counter-increment: s; content: counter(s); position: absolute; left: 0; top: 0.1rem; width: 1.6rem; height: 1.6rem; border-radius: 50%; background: var(--accent); color: #fff; font-family: var(--mono); font-size: 0.8rem; display: grid; place-items: center; }
 .steps li b { display: block; }
 
-table.tbl { border-collapse: collapse; font-size: 0.92rem; margin: 0.8rem 0 1rem; }
+table.tbl { border-collapse: collapse; font-size: 0.92rem; margin: 0.8rem 0 1rem; display: block; max-width: 100%; overflow-x: auto; }
 table.tbl th, table.tbl td { text-align: left; padding: 0.35rem 0.9rem 0.35rem 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
 table.tbl th { color: var(--muted); font-weight: 600; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em; }
 table.tbl td.num { font-family: var(--mono); }

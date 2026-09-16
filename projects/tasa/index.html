@@ -167,7 +167,7 @@
   sat.el.addEventListener('pointermove', function (e) { if (dragging) pickTarget(e); });
   window.addEventListener('pointerup', function () { dragging = false; });
   sat.el.style.cursor = 'crosshair';
-  sat.el.style.touchAction = 'none';
+  sat.el.style.touchAction = 'pan-y';
   function drawSat() {
     const c = sat.ctx, w = sat.w, h = sat.h;
     c.fillStyle = C.panel;
@@ -334,7 +334,7 @@
   window.addEventListener('pointermove', function (e) { if (!pd) return; Q.yaw = pd[2] + (e.clientX - pd[0]) * 0.01; Q.pitch = Site.clamp(pd[3] + (e.clientY - pd[1]) * 0.01, -1.4, 1.4); drawPyr(); });
   window.addEventListener('pointerup', function () { pd = null; });
   pyr.el.style.cursor = 'grab';
-  pyr.el.style.touchAction = 'none';
+  pyr.el.style.touchAction = 'pan-y';
   function project(v, w, h) {
     const cy = Math.cos(Q.yaw), sy = Math.sin(Q.yaw), cp = Math.cos(Q.pitch), sp = Math.sin(Q.pitch);
     const x1 = v[0] * cy - v[1] * sy;

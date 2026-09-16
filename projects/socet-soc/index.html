@@ -13,7 +13,9 @@
 .ops { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.35rem; font-family: var(--mono); font-size: 0.78rem; margin: 0.8rem 0; }
 .ops span { background: var(--bg2); border: 1px solid var(--rule); border-radius: 6px; padding: 0.25rem 0.5rem; color: var(--ink2); }
 .ops span b { color: var(--accent); }
-.tri { display: grid; grid-template-columns: auto 1fr; gap: 1rem; align-items: start; }
+.tri { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1rem; align-items: start; }
+@media (max-width: 640px) { .tri { grid-template-columns: 1fr; } }
+.triout { overflow-x: auto; min-width: 0; }
 .trigrid { display: grid; grid-template-columns: repeat(6, 34px); gap: 3px; }
 .trigrid div { width: 34px; height: 34px; display: grid; place-items: center; font-family: var(--mono); font-size: 0.72rem; border-radius: 5px; background: #141a24; color: var(--panel-muted); cursor: default; }
 .trigrid div.up { background: #1f2a3d; color: var(--panel-ink); }

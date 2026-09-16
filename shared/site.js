@@ -6,6 +6,24 @@
   const Site = {};
   const root = document.documentElement;
 
+  /* Older mobile browsers lack roundRect on the canvas context. */
+  if (window.CanvasRenderingContext2D && !CanvasRenderingContext2D.prototype.roundRect) {
+    CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+      const rr = Math.min(typeof r === 'number' ? r : (r && r[0]) || 0, w / 2, h / 2);
+      this.moveTo(x + rr, y);
+      this.lineTo(x + w - rr, y);
+      this.arcTo(x + w, y, x + w, y + rr, rr);
+      this.lineTo(x + w, y + h - rr);
+      this.arcTo(x + w, y + h, x + w - rr, y + h, rr);
+      this.lineTo(x + rr, y + h);
+      this.arcTo(x, y + h, x, y + h - rr, rr);
+      this.lineTo(x, y + rr);
+      this.arcTo(x, y, x + rr, y, rr);
+      this.closePath();
+      return this;
+    };
+  }
+
   const THEME_KEY = 'jl-theme';
   function applyTheme(t) {
     if (t) root.setAttribute('data-theme', t);
