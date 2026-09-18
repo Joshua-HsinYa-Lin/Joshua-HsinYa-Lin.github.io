@@ -1,0 +1,110 @@
+% General page for the Purdue semiconductor fair, Sep 22.
+% 
+% WHAT IT IS FOR, in his words: he registered late and goes in at 12, so he
+% expects long lines everywhere. If he finds a short line at a company with no
+% tailored page, this is the page he hands over.
+% 
+% THESIS: he designs RTL and takes it to silicon, and he has built and
+% debugged the hardware on the other side of the interface.
+% 
+% BUILT FOR BOTH HALVES OF THE ROOM. A semiconductor fair is chip companies
+% and equipment companies, and they buy different things. SoCET carries the
+% silicon argument across two entries, and TASA and Lunabotics carry the board
+% and bench argument that an equipment company reads. Neither is buried.
+% 
+% This is the page that has to work on a company nobody researched, which is
+% how Elveo and SMC America happened. Treat it as a first class page and not
+% as a leftover.
+\documentclass[11pt]{article}
+
+\usepackage[top=0.4in,bottom=0.4in,left=0.5in,right=0.5in]{geometry}
+\usepackage{mathptmx}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+% pdfTeX positions words with kerning and writes no space characters, so a
+% parser at default word tolerance glues them: PurdueUniversity,WestLafayette.
+% Measured 46 glued runs out of 85 tokens before this line, 2 out of 626 after.
+% His Word exported resume scored 1 of 415, which is what a working PDF looks
+% like. Do not remove this.
+\pdfinterwordspaceon
+
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\linespread{0.97}
+
+\hyphenpenalty=10000
+\exhyphenpenalty=10000
+\raggedright
+\setlength{\rightskip}{0pt plus 2em}
+
+\titleformat{\section}{\bfseries\large}{}{0em}{}[\vspace{-0.2em}\titlerule]
+\titlespacing*{\section}{0pt}{4pt}{2pt}
+
+\setlist[itemize]{leftmargin=1.4em, itemsep=0.5pt, topsep=0pt, parsep=0pt}
+
+\newcommand{\entry}[3]{\noindent\textbf{#1}\hspace{0.45em}\textbar\hspace{0.45em}#2\hspace{0.45em}\textbar\hspace{0.45em}#3\par}
+
+\begin{document}
+
+\begin{center}
+    {\LARGE\bfseries Hsin Ya Lin}\\[3pt]
+    Dublin, California \,\textbar\, \href{mailto:lin2082@purdue.edu}{lin2082@purdue.edu} \,\textbar\, US Permanent Resident\\[2pt]
+    LinkedIn: \href{https://www.linkedin.com/in/hsin-ya-lin-70349826a}{www.linkedin.com/in/hsin-ya-lin-70349826a} \,\textbar\, GitHub: \href{https://joshua-hsinya-lin.github.io}{joshua-hsinya-lin.github.io}
+\end{center}
+
+
+\section{WORK EXPERIENCE}
+
+\entry{Satellite Electronics Intern}{Taiwan Space Agency}{Jul 2026 to Aug 2026}
+\begin{itemize}
+    \item Verified the RS422 link byte by byte by decoding captured wire traffic against an independent implementation, establishing 7 protocol facts that had been assumed and diagnosing 4 firmware defects including memory corruption behind a reboot loop. % cite: tasa-04
+    \item Wrote roughly 9,000 lines of real time C and C++ firmware for that board, and cut combined communication and motor latency from 727ms to 263ms. % cite: tasa-04, tasa-05
+    \item Designed the satellite reaction wheel test board in KiCad and built it, integrating an ESP32-S3 microcontroller, a 9 axis IMU over I2C, an RS422 transceiver and a DC-DC buck converter with hardware and software safety interlocks. % cite: tasa-03
+\end{itemize}
+
+
+\section{RESEARCH}
+
+\entry{Digital Design and Verification}{Purdue SoCET RISC-V SoC Team}{Aug 2026 to Present}
+\begin{itemize}
+    \item Designing the SPI controller in SystemVerilog that reads an inertial sensor into a RISC-V system on chip, on a team building its own on-chip data bus with memory mapped IO after evaluating and rejecting an existing one. % cite: socet-04, socet-05
+    \item Moving quaternion state estimation out of software and into a hardware Kalman filter accelerator on the same die, checked against a golden model and profiled on cycle count, power and area against a software-only baseline on the same RISC-V core. % cite: socet-05
+\end{itemize}
+
+\entry{Digital Design and Verification}{Purdue SoCET Matrix Coprocessor Team}{Jan 2026 to May 2026}
+\begin{itemize}
+    \item Designed a matrix math coprocessor in SystemVerilog running on FPGA hardware, with a 33 state main control FSM, nested FSMs inside the arithmetic modules, and a memory map split three ways so operands and results cannot overwrite one another, verified with 7 module level testbenches. % cite: socet-01, socet-02
+    \item Carried the same RTL through an ASIC flow covering logic synthesis in Yosys, place and route, timing closure and standard cell layout in Cadence Virtuoso, with simulation in Icarus Verilog and waveform analysis in QuestaSim. % cite: socet-03
+\end{itemize}
+
+
+\section{TECHNICAL EXPERIENCE}
+
+\entry{Power and Hardware Engineer}{Purdue Lunabotics}{Sep 2025 to Aug 2026}
+\begin{itemize}
+    \item Designed a 24V, 20A six cell battery sensing and protection board around the TI BQ77915 in KiCad, sizing the external resistor network that sets the overcurrent and overvoltage thresholds, and simulated the MOSFET switching and RC values in LTspice with a simplified model of the protector. % cite: luna-01, luna-03
+    \item Laid the board out for fabrication, hand assembled and micro soldered 50+ components onto it, diagnosed voltage and thermal variances during bench test, and integrated it into the rover power distribution system. % cite: luna-02, luna-04
+\end{itemize}
+
+
+\section{EDUCATION}
+
+\entry{Purdue University}{West Lafayette, Indiana}{Aug 2025 to Present}
+Bachelor of Science in Electrical Engineering (expected December 2028)\par
+GPA: 3.98 / 4.0; Dean's List (2 semesters) \& Semester Honors (2 semesters)\par
+% cite: edu-01
+
+\section{SKILLS}
+
+\begin{itemize}
+    \item Languages: SystemVerilog, Verilog, C, C++, Python, MATLAB, Assembly, shell scripting, Linux/Unix, Git
+    \item Silicon: RTL design and verification, FSM and datapath, module level testbenches, functional simulation, waveform analysis, signal tracing, golden model comparison, logic synthesis, place and route, timing closure, standard cell layout, FPGA prototyping, RTL to GDS
+    \item SoC: RISC-V, hardware accelerator design, on-chip bus design, memory mapped IO, memory map partitioning, cycle count, power and area profiling against a software baseline
+    \item Embedded: bare metal C and C++ real time firmware, microcontroller bring-up, ESP32-S3 and MSP430, peripheral and sensor drivers, safety interlocks, SPI, I2C, UART, RS422, CAN bus, byte level protocol verification against captured wire traffic
+    \item Hardware and bench: schematic through PCB layout and assembly in KiCad and Altium, micro soldering, surface mount rework, DC-DC buck and boost conversion, battery protection, analog filters and amplifiers, hardware in the loop testing, parameter identification from captured data, oscilloscope, logic analyzer, spectrum analyzer, LTspice
+    \item Tools: Cadence Virtuoso, Yosys, QuestaSim, ModelSim, SimVision, Icarus Verilog, GTKWave, gdb, MATLAB and Simulink, MATLAB Coder, PyTorch, KiCad, Altium, LTspice
+\end{itemize}
+
+\end{document}

@@ -9,7 +9,9 @@ canvas.
     index.html            home page: hero, scannable facts, project cards
     about/index.html      the written version: every entry with its figures
     404.html              styled not-found page
-    resume.pdf            the current resume, linked from the hero and the header
+    resume.pdf            the web resume, linked from the hero and the header
+    scripts/resume_web.tex   its source: the semiconductor general variant,
+                             phone number removed because this one is public
     robots.txt            allows crawling, points at the sitemap
     sitemap.xml           home, about, and every project page
     shared/site.css       design tokens and components
@@ -42,6 +44,20 @@ labeled, and a marked hook says what real data would replace them.
 
 Numbers quoted in prose come from the fact bank in the Resume Sandbox repository.
 No number on this site is invented to fill a gap.
+
+## The resume on this site
+
+`resume.pdf` is the semiconductor general variant from the Resume Sandbox
+repository with the phone number removed, because a page a crawler can read is
+not the same as a sheet handed across a table. Location, email, residency and
+the links are unchanged.
+
+To refresh it after the Sandbox variant changes, copy
+`applications/semi-general/Joshua_Resume_Semigeneral.tex`, delete the phone
+number and the separator after it from the contact line, render with pdflatex,
+and check the result: one page, no phone in the text layer, and under 5% glued
+tokens when extracted at the default word tolerance, which is what an untuned
+parser sees.
 
 ## Running the checks
 
