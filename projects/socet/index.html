@@ -3,8 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>A matrix coprocessor on an FPGA — Hsin Ya Lin</title>
-<meta name="description" content="A working emulation of a matrix math coprocessor: keypad, seven segment display, a 33 state control FSM, a three region memory map and a valid/ready handshake, one clock cycle at a time.">
+<title>FPGA Matrix Coprocessor in SystemVerilog, Purdue SoCET | Hsin Ya Lin</title>
+<meta name="description" content="A working emulation of a matrix math coprocessor on an FPGA: keypad, seven segment display, a 33 state control FSM, a three region memory map and a valid/ready handshake, one clock cycle at a time.">
+<link rel="canonical" href="https://joshua-hsinya-lin.github.io/projects/socet/index.html">
+<meta property="og:title" content="FPGA Matrix Coprocessor in SystemVerilog, Purdue SoCET">
+<meta property="og:description" content="A working emulation of a matrix math coprocessor on an FPGA: keypad, seven segment display, a 33 state control FSM, a three region memory map and a valid/ready handshake, one clock cycle at a time.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://joshua-hsinya-lin.github.io/projects/socet/index.html">
+<meta property="og:image" content="https://joshua-hsinya-lin.github.io/profile.jpg">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="FPGA Matrix Coprocessor in SystemVerilog, Purdue SoCET">
+<meta name="twitter:description" content="A working emulation of a matrix math coprocessor on an FPGA: keypad, seven segment display, a 33 state control FSM, a three region memory map and a valid/ready handshake, one clock cycle at a time.">
+<meta name="twitter:image" content="https://joshua-hsinya-lin.github.io/profile.jpg">
 <link rel="stylesheet" href="../../shared/site.css">
 <script src="../../shared/site.js"></script>
 <style>
@@ -28,13 +38,13 @@
 .side h4:first-child { margin-top: 0; }
 .mini { font-family: var(--mono); font-size: 0.82rem; }
 .mini b { color: var(--amber); }
-.widget { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; align-items: start; }
+.widget { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 1rem; align-items: start; }
 .bits { font-family: var(--mono); font-size: 0.95rem; line-height: 1.7; white-space: pre; overflow-x: auto; }
 .bits .k { color: var(--panel-muted); }
 .bits .v { color: var(--cyan); }
 .bits .s { color: var(--amber); }
 .bits .r { color: var(--green); font-weight: 600; }
-.flow { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.6rem; margin: 1rem 0; }
+.flow { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 0.6rem; margin: 1rem 0; }
 .flow div { background: var(--bg2); border: 1px solid var(--rule); border-radius: 10px; padding: 0.6rem 0.75rem; font-size: 0.9rem; }
 .flow div b { display: block; font-size: 0.95rem; }
 .flow div span { color: var(--muted); font-family: var(--mono); font-size: 0.78rem; }
@@ -48,6 +58,7 @@
 <div class="when">Jan 2026 to present · West Lafayette, Indiana</div>
 <p class="lede">Matrix arithmetic is slow in software and is the reason GPUs and TPUs exist. This is the small version of that idea: a keypad, a display, four arithmetic units and 512 words of memory, run by one control state machine, on a real FPGA. Below is a working emulation of it, clock cycle by clock cycle.</p>
 <div class="tags"><span>SystemVerilog</span><span>FPGA</span><span>FSM design</span><span>valid/ready handshake</span><span>Yosys</span><span>Icarus Verilog</span><span>QuestaSim</span><span>Virtuoso</span><span>SimVision</span></div>
+<p class="src kinds"><span class="kind model">Simulation</span> the emulator runs the control logic ported from my SystemVerilog, cycle for cycle, with the same states, memory map and handshakes. <span class="kind measured">Measured</span> the counts in the text: 33 states, 512 words, four operations, seven testbenches, all read from the source.</p>
 
 <section class="sub" id="use">
 <h2>Use it</h2>
@@ -79,14 +90,14 @@
 
 <section class="sub" id="states-sec">
 <h2>33 states, and why most of them are about waiting</h2>
-<p>The main FSM sequences everything without a processor: dimension entry, element entry, operation choice, the calculation loop, and result navigation. It is binary encoded in six bits rather than one hot, since 33 flip flops for 33 states buys nothing at this size.</p>
+<p>The main FSM sequences everything without a processor: dimension entry, element entry, operation choice, the calculation loop, and result navigation. It is binary encoded in six bits rather than one hot. Binary was the better trade here because it holds the state in six flip flops instead of 33, and this design needed neither of the things one hot buys: single bit state decode, and the shorter next state logic that can matter when a large machine is fighting for timing.</p>
 <p>The calculation loop is where the state count comes from. Reading one operand and delivering it to an arithmetic module takes six states: <span class="mono">FETCH</span> raises the memory read, <span class="mono">WAIT</span> gives the RAM a cycle, <span class="mono">LATCH</span> captures the data, <span class="mono">SEND</span> puts it on the module interface with <span class="mono">valid</span> high, then <span class="mono">ACK_LOW</span> and <span class="mono">ACK_HIGH</span> wait to see the module's <span class="mono">ready</span> go low and come back high. Both edges are required. If the controller only waited for <span class="mono">ready</span> high, a module that was already ready from the previous transfer would look like it had accepted data it never saw, and the same operand would be delivered twice. Two operands, so twelve states, plus the start handshake and the result write, and the count is what it is.</p>
 <figure><img src="fsm-diagram.png" alt="Main FSM diagram from the project report" loading="lazy"><figcaption>The top level flow from the project report. The emulator above shows the full state list, including the handshake substates the report diagram folds into each calculation box.</figcaption></figure>
 </section>
 
 <section class="sub" id="memory-sec">
 <h2>Three regions, one RAM</h2>
-<p>The memory is a single 512 word by 32 bit array. The controller carves it into three regions of 128 words at 0x000, 0x080 and 0x100, one each for the first operand, the second operand and the result, so a calculation can never overwrite an input it has not finished reading. Elements are stored row major: the address of row <em>r</em>, column <em>c</em> in a matrix with <em>C</em> columns is <span class="mono">base + (r &minus; 1)&middot;C + (c &minus; 1)</span>. A 9 by 9 matrix uses 81 words, which is why 128 is enough.</p>
+<p>The memory is a single 512 word by 32 bit array. The controller carves it into three regions of 128 words at 0x000, 0x080 and 0x100, one each for the first operand, the second operand and the result, so a calculation can never overwrite an input it has not finished reading. Elements are stored row-major: the address of row <em>r</em>, column <em>c</em> in a matrix with <em>C</em> columns is <span class="mono">base + (r &minus; 1)&middot;C + (c &minus; 1)</span>. A 9 by 9 matrix uses 81 words, which is why 128 is enough.</p>
 <div class="panel">
   <div class="widget">
     <div class="controls" id="addrctl" style="margin-top:0"></div>
@@ -812,7 +823,7 @@
   const aCols = Site.slider(actl, { label: 'columns', min: 1, max: 9, step: 1, value: 4, digits: 0, onInput: drawAddr });
   const aR = Site.slider(actl, { label: 'row r', min: 1, max: 9, step: 1, value: 2, digits: 0, onInput: drawAddr });
   const aC = Site.slider(actl, { label: 'column c', min: 1, max: 9, step: 1, value: 3, digits: 0, onInput: drawAddr });
-  const aReg = Site.select(actl, { value: 0, options: [{ value: 0, label: 'M1' }, { value: 0x80, label: 'M2' }, { value: 0x100, label: 'OUT' }], onChange: drawAddr });
+  const aReg = Site.select(actl, { label: 'Memory region', value: 0, options: [{ value: 0, label: 'M1' }, { value: 0x80, label: 'M2' }, { value: 0x100, label: 'OUT' }], onChange: drawAddr });
   function drawAddr() {
     const R = aRows.value, Cc = aCols.value;
     let rr = Math.min(aR.value, R), cc = Math.min(aC.value, Cc);
@@ -841,7 +852,7 @@
   /* Shift and add widget */
   const dimrow = document.getElementById('dimrow');
   let dim = 7;
-  const dimSel = Site.select(dimrow, { value: 7, options: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(function (d) { return { value: d, label: String(d) }; }), onChange: function (v) { dim = v; drawShift(); } });
+  const dimSel = Site.select(dimrow, { label: 'Matrix dimension', value: 7, options: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(function (d) { return { value: d, label: String(d) }; }), onChange: function (v) { dim = v; drawShift(); } });
   const sval = Site.slider(document.getElementById('shiftctl'), { label: 'value', min: 0, max: 99, step: 1, value: 13, digits: 0, wide: true, onInput: drawShift });
   const FORMS = {
     0: [], 1: [[0, 1]], 2: [[1, 1]], 3: [[1, 1], [0, 1]], 4: [[2, 1]], 5: [[2, 1], [0, 1]], 6: [[2, 1], [1, 1]], 7: [[3, 1], [0, -1]], 8: [[3, 1]], 9: [[3, 1], [0, 1]]

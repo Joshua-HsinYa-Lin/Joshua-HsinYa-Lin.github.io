@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://joshua-hsinya-lin.github.io/sitemap.xml

@@ -1,18 +1,24 @@
 /* Registry of projects, in the order they appear on the home page.
 
-   Adding a project: create projects/<slug>/index.html (copy an existing one
-   as the template, it carries its own script and images) and add one entry
-   here. Nothing else on the site changes.
+   The home page cards are real HTML in index.html and work with JavaScript
+   off. This file only supplies the live canvas preview drawn on each card,
+   plus the metadata the sitemap and smoke tests check against.
 
-   preview(ctx, w, h, t) draws the live thumbnail on the home page card. Keep
-   it small and make it hint at what the page lets a visitor do. t is seconds. */
+   Adding a project:
+     1. create projects/<slug>/index.html, copying an existing page
+     2. add a card to index.html with data-slug="<slug>"
+     3. add one entry here
+     4. run scripts/check_site.mjs, which regenerates nothing but will tell
+        you if the card, the page, or the sitemap entry is missing
+
+   preview(ctx, w, h, t, dt) draws the thumbnail. t is seconds since the loop
+   started, so it begins at zero on every page load. Randomness is seeded so
+   screenshots and tests are repeatable. */
 window.PROJECTS = [
   {
     slug: 'socet',
     title: 'A matrix coprocessor on an FPGA',
-    hook: 'Type a matrix on the keypad and watch a 33 state machine, three memory regions and a valid/ready handshake do the arithmetic, one clock at a time.',
-    when: 'Purdue SoCET · Jan 2026 to present',
-    tags: ['SystemVerilog', 'FPGA', 'RTL to GDS'],
+    when: 'Purdue SoCET · Jan 2026 to May 2026',
     preview: function (ctx, w, h, t) {
       const words = ['ROW ', 'COL ', '  124', 'ADD ', '   3 15', 'TRA '];
       const s = words[Math.floor(t / 1.3) % words.length].padStart(8, ' ');
@@ -31,15 +37,14 @@ window.PROJECTS = [
   {
     slug: 'socet-soc',
     title: 'A Kalman filter in hardware',
-    status: 'in progress',
-    hook: 'A RISC-V system on chip with an attitude filter accelerator. Watch a Kalman filter fuse a gyro and an accelerometer, then see how the whole filter becomes a straight line of descriptors over one multiplier.',
     when: 'Purdue SoCET · Fall 2026',
-    tags: ['RISC-V', 'Kalman filter', 'Fixed point', 'SPI'],
-    _s: { t: 0, th: 0, est: 0, bias: 0, pts: [] },
-    preview: function (ctx, w, h, t, dt) {
+    status: 'in progress',
+    _s: { est: 0, pts: [], rnd: null },
+    preview: function (ctx, w, h, t) {
       const s = this._s;
+      if (!s.rnd) s.rnd = Site.rng(4242);
       const truth = 0.35 * Math.sin(t * 1.1);
-      const meas = truth + (Math.random() - 0.5) * 0.5;
+      const meas = truth + (s.rnd() - 0.5) * 0.5;
       s.est += (meas - s.est) * 0.12;
       s.pts.push([t, truth, meas, s.est]);
       while (s.pts.length && s.pts[0][0] < t - 6) s.pts.shift();
@@ -47,26 +52,24 @@ window.PROJECTS = [
       function X(tt) { return x1 - (t - tt) / 6 * (x1 - x0); }
       ctx.fillStyle = 'rgba(76,201,240,0.7)';
       s.pts.forEach(function (p, i) { if (i % 3 === 0) { ctx.beginPath(); ctx.arc(X(p[0]), cy - p[2] * amp, 1.6, 0, Math.PI * 2); ctx.fill(); } });
-      ctx.strokeStyle = '#8a93a5'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#9aa2b1'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1.5;
       ctx.beginPath(); s.pts.forEach(function (p, i) { const x = X(p[0]), y = cy - p[1] * amp; if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }); ctx.stroke();
       ctx.setLineDash([]);
       ctx.strokeStyle = '#8ce99a'; ctx.lineWidth = 2;
       ctx.beginPath(); s.pts.forEach(function (p, i) { const x = X(p[0]), y = cy - p[3] * amp; if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }); ctx.stroke();
-      ctx.fillStyle = '#6f7a8c'; ctx.font = '10px ' + Site.mono();
+      ctx.fillStyle = '#8b95a7'; ctx.font = '10px ' + Site.mono();
       ctx.fillText('noisy sensor · truth · filter estimate', 14, h - 10);
-      void dt;
     }
   },
   {
     slug: 'tasa',
     title: 'Pointing a satellite with spinning wheels',
-    hook: 'Spin a wheel one way and the body turns the other. Slew a satellite, split torque across a four wheel pyramid, and feel what 727 ms of latency does to a control loop.',
     when: 'Taiwan Space Agency · Jul to Aug 2026',
-    tags: ['Attitude control', 'ESP32 firmware', 'Hardware in the loop'],
-    _s: { th: 0, om: 0, tgt: 0.9, wheel: 0, next: 0 },
+    _s: { th: 0, om: 0, tgt: 0.9, wheel: 0, next: 0, rnd: null },
     preview: function (ctx, w, h, t, dt) {
       const s = this._s;
-      if (t > s.next) { s.tgt = (Math.random() - 0.5) * 2.6; s.next = t + 3.2; }
+      if (!s.rnd) s.rnd = Site.rng(99);
+      if (t > s.next) { s.tgt = (s.rnd() - 0.5) * 2.6; s.next = t + 3.2; }
       const tau = Site.clamp(-3.0 * (s.th - s.tgt) - 2.2 * s.om, -1.2, 1.2);
       s.om += tau * dt;
       s.th += s.om * dt;
@@ -117,11 +120,8 @@ window.PROJECTS = [
   {
     slug: 'ece20007',
     title: 'A boost converter and an equalizer, measured against their simulations',
-    hook: 'Drag the duty cycle and watch the inductor pump 5 V up to 30 V. Move three faders and hear the bands. Then see why the bench read 9.5% below the simulation.',
     when: 'Purdue ECE 20007 · Spring 2026',
-    tags: ['Power electronics', 'Analog', 'LTspice'],
     preview: function (ctx, w, h, t) {
-      const per = 0.9;
       const D = 0.55 + 0.25 * Math.sin(t * 0.7);
       const x0 = 14;
       const x1 = w - 14;
@@ -162,28 +162,26 @@ window.PROJECTS = [
         else ctx.lineTo(x, y);
       }
       ctx.stroke();
-      ctx.fillStyle = '#6f7a8c';
+      ctx.fillStyle = '#8b95a7';
       ctx.font = '10px ' + Site.mono();
       ctx.fillText('PWM', x0, yp1 - 6);
       ctx.fillText('iL', x0, yi1 - 6);
       ctx.fillText('Vout', x0, Math.max(12, vo - 6));
-      void per;
     }
   },
   {
     slug: 'lunabotics',
     title: 'The board that disconnects the battery',
-    hook: 'Six cells, two stacked protection ICs, and a load. Overload it, overcharge it, overheat it, and watch the FETs open before anything else does.',
     when: 'Purdue Lunabotics · Sep 2025 to Aug 2026',
-    tags: ['Battery protection', 'KiCad', 'Hand assembly'],
-    _s: { v: [4.12, 3.98, 4.05, 3.91, 4.18, 3.95], ph: 0 },
+    _s: { v: [4.12, 3.98, 4.05, 3.91, 4.18, 3.95], rnd: null },
     preview: function (ctx, w, h, t, dt) {
       const s = this._s;
+      if (!s.rnd) s.rnd = Site.rng(2026);
       const mean = s.v.reduce(function (a, b) { return a + b; }, 0) / 6;
       let hi = 0;
       for (let i = 1; i < 6; i++) if (s.v[i] > s.v[hi]) hi = i;
       if (s.v[hi] - mean > 0.004) s.v[hi] -= 0.05 * dt;
-      else if (Math.random() < dt * 0.25) s.v[Math.floor(Math.random() * 6)] += 0.12;
+      else if (s.rnd() < dt * 0.25) s.v[Math.floor(s.rnd() * 6)] += 0.12;
       const bw = Math.min(34, w / 9);
       const gap = bw * 0.5;
       const x0 = (w - 6 * bw - 5 * gap) / 2;
@@ -198,31 +196,30 @@ window.PROJECTS = [
         ctx.fillRect(x, top, bw, base - top);
         ctx.fillStyle = i === hi && s.v[hi] - mean > 0.004 ? '#ff6b6b' : '#8ce99a';
         ctx.fillRect(x, base - bh, bw, bh);
-        ctx.fillStyle = '#6f7a8c';
+        ctx.fillStyle = '#8b95a7';
         ctx.textAlign = 'center';
         ctx.fillText(s.v[i].toFixed(2), x + bw / 2, base + 14);
       }
       ctx.textAlign = 'left';
-      ctx.fillStyle = '#6f7a8c';
+      ctx.fillStyle = '#8b95a7';
       ctx.fillText('balancing', x0, top - 6);
     }
   },
   {
     slug: 'nycu',
     title: 'Decoding bits that moved',
-    hook: 'Delete one bit and every bit after it reads as wrong. Corrupt a codeword, compare position scoring against alignment, and see why a Transformer was pointed at it.',
     when: 'NYCU Institute of Communications · May to Jul 2026',
-    tags: ['Error correction', 'PyTorch', 'Transformers'],
-    _s: { bits: null, k: 5, next: 0 },
+    _s: { bits: null, k: 5, next: 0, rnd: null },
     preview: function (ctx, w, h, t) {
       const s = this._s;
+      if (!s.rnd) s.rnd = Site.rng(11);
       const n = Math.min(22, Math.floor((w - 20) / 15));
       if (!s.bits || s.bits.length !== n) {
         const r = Site.rng(7);
         s.bits = [];
         for (let i = 0; i < n; i++) s.bits.push(r() < 0.5 ? 0 : 1);
       }
-      if (t > s.next) { s.k = 2 + Math.floor(Math.random() * (n - 6)); s.next = t + 2.4; }
+      if (t > s.next) { s.k = 2 + Math.floor(s.rnd() * (n - 6)); s.next = t + 2.4; }
       const cw = (w - 20) / n;
       ctx.font = 'bold 13px ' + Site.mono();
       ctx.textAlign = 'center';
@@ -244,7 +241,7 @@ window.PROJECTS = [
       ctx.moveTo(xk, y1 + 10);
       ctx.lineTo(xk, y2 - 10);
       ctx.stroke();
-      ctx.fillStyle = '#6f7a8c';
+      ctx.fillStyle = '#8b95a7';
       ctx.font = '10px ' + Site.mono();
       ctx.textAlign = 'left';
       ctx.fillText('sent', 10, y1 - 16);
@@ -255,13 +252,12 @@ window.PROJECTS = [
   {
     slug: 'frc8020',
     title: 'Wiring a robot so a fault finds itself',
-    hook: 'A short appears somewhere in the harness. Find it in a single harness, then in one with a labeled connector at every subsystem. Count your steps.',
     when: 'FIRST Robotics Team 8020 · Aug 2023 to Jun 2024',
-    tags: ['Power distribution', 'CAN bus', 'Harnessing'],
-    _s: { fault: 2, next: 0, open: 0 },
+    _s: { fault: 2, next: 0, rnd: null },
     preview: function (ctx, w, h, t) {
       const s = this._s;
-      if (t > s.next) { s.fault = Math.floor(Math.random() * 6); s.next = t + 3; s.open = 0; }
+      if (!s.rnd) s.rnd = Site.rng(8020);
+      if (t > s.next) { s.fault = Math.floor(s.rnd() * 6); s.next = t + 3; }
       const phase = (t - (s.next - 3)) / 3;
       const cx = w / 2;
       const cy = h / 2;
@@ -286,7 +282,7 @@ window.PROJECTS = [
         ctx.stroke();
         const mx = cx + Math.cos(a) * R * 0.5;
         const my = cy + Math.sin(a) * R * 0.5;
-        ctx.fillStyle = cut ? '#ffb648' : '#ffb648';
+        ctx.fillStyle = '#ffb648';
         ctx.fillRect(mx - 4, my - 4, 8, 8);
       }
       ctx.fillStyle = phase > 0.5 ? '#8ce99a' : '#ff6b6b';
@@ -299,7 +295,7 @@ window.PROJECTS = [
       ctx.textBaseline = 'middle';
       ctx.fillText('PDP', cx, cy);
       ctx.textBaseline = 'alphabetic';
-      ctx.fillStyle = '#6f7a8c';
+      ctx.fillStyle = '#8b95a7';
       ctx.font = '10px ' + Site.mono();
       ctx.textAlign = 'left';
       ctx.fillText(phase > 0.5 ? 'unplugged one connector, fault isolated' : 'fault somewhere on the bus', 10, h - 8);
@@ -308,9 +304,7 @@ window.PROJECTS = [
   {
     slug: 'trace',
     title: 'How much of your weight does a helper carry?',
-    hook: 'Lean on a rod held by someone else and watch the knee unload, the ankle push sideways, and the helper’s wrist take the difference. Then compare against motion capture.',
     when: 'Purdue TRACE Laboratory · Jan 2026 to present',
-    tags: ['Biomechanics', 'Inverse dynamics', 'MATLAB'],
     preview: function (ctx, w, h, t) {
       const x0 = 34;
       const x1 = w - 10;
@@ -326,6 +320,7 @@ window.PROJECTS = [
       for (let k = 0; k < 2; k++) {
         ctx.strokeStyle = cols[k];
         ctx.lineWidth = 2;
+        ctx.setLineDash(k === 0 ? [] : [5, 4]);
         ctx.beginPath();
         for (let x = x0; x <= x1; x += 2) {
           const ph = (x - x0) / 60 - t * 1.6 + k * Math.PI;
@@ -335,24 +330,27 @@ window.PROJECTS = [
         }
         ctx.stroke();
       }
-      ctx.fillStyle = '#6f7a8c';
+      ctx.setLineDash([]);
       ctx.font = '10px ' + Site.mono();
+      ctx.fillStyle = '#ff6b6b';
       ctx.fillText('left knee, unassisted', 40, 14);
       ctx.fillStyle = '#4cc9f0';
       ctx.fillText('right knee, leaning on the rod', 40, 28);
-      ctx.fillStyle = '#ff6b6b';
-      ctx.fillRect(x0 - 24, 8, 16, 3);
-      ctx.fillStyle = '#4cc9f0';
-      ctx.fillRect(x0 - 24, 22, 16, 3);
+      ctx.strokeStyle = '#ff6b6b';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath(); ctx.moveTo(x0 - 26, 11); ctx.lineTo(x0 - 8, 11); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.strokeStyle = '#4cc9f0';
+      ctx.beginPath(); ctx.moveTo(x0 - 26, 25); ctx.lineTo(x0 - 8, 25); ctx.stroke();
     }
   },
   {
     slug: 'lna',
-    title: 'A low noise amplifier',
-    status: 'starting Fall 2026',
-    hook: 'Purdue IEEE Microwave is designing one this semester and I am on it. Until there is a design to show, here is why the first stage decides the noise of the whole receiver.',
+    title: 'A low-noise amplifier',
     when: 'Purdue IEEE · Fall 2026',
-    tags: ['RF', 'Altium', 'Noise figure'],
+    status: 'no design yet',
+    upcoming: true,
     preview: function (ctx, w, h, t) {
       const y = h / 2;
       const n = 3;
@@ -381,7 +379,7 @@ window.PROJECTS = [
         ctx.stroke();
         noise *= i === 0 ? 1.6 : 3.2;
       }
-      ctx.fillStyle = '#6f7a8c';
+      ctx.fillStyle = '#8b95a7';
       ctx.font = '10px ' + Site.mono();
       ctx.fillText('the first stage sets the noise figure', 20, h - 10);
     }

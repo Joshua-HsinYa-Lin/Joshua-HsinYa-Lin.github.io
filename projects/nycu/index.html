@@ -3,8 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Decoding bits that moved — Hsin Ya Lin</title>
-<meta name="description" content="Corrupt a codeword with insertions and deletions, compare position scoring against alignment, watch the edit distance table fill, and see why a Transformer was pointed at the problem.">
+<title>Transformer Decoders for Insertion Deletion Channels, NYCU | Hsin Ya Lin</title>
+<meta name="description" content="Corrupt a codeword with insertions and deletions, compare position scoring against Levenshtein alignment, and see why a Transformer was pointed at error correction coding. PyTorch, 1M sequences.">
+<link rel="canonical" href="https://joshua-hsinya-lin.github.io/projects/nycu/index.html">
+<meta property="og:title" content="Transformer Decoders for Insertion Deletion Channels, NYCU">
+<meta property="og:description" content="Corrupt a codeword with insertions and deletions, compare position scoring against Levenshtein alignment, and see why a Transformer was pointed at error correction coding. PyTorch, 1M sequences.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://joshua-hsinya-lin.github.io/projects/nycu/index.html">
+<meta property="og:image" content="https://joshua-hsinya-lin.github.io/profile.jpg">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Transformer Decoders for Insertion Deletion Channels, NYCU">
+<meta name="twitter:description" content="Corrupt a codeword with insertions and deletions, compare position scoring against Levenshtein alignment, and see why a Transformer was pointed at error correction coding. PyTorch, 1M sequences.">
+<meta name="twitter:image" content="https://joshua-hsinya-lin.github.io/profile.jpg">
 <link rel="stylesheet" href="../../shared/site.css">
 <script src="../../shared/site.js"></script>
 <style>
@@ -18,7 +28,7 @@
 .bitrows .gap { color: #3a4661; }
 .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
 @media (max-width: 760px) { .split { grid-template-columns: 1fr; } }
-.models { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.7rem; margin: 1rem 0; }
+.models { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 0.7rem; margin: 1rem 0; }
 .model { background: var(--bg2); border: 1px solid var(--rule); border-radius: 10px; padding: 0.7rem 0.85rem; font-size: 0.92rem; }
 .model b { display: block; margin-bottom: 0.2rem; }
 .model span { display: block; color: var(--muted); font-family: var(--mono); font-size: 0.76rem; margin-bottom: 0.3rem; }
@@ -37,6 +47,7 @@
 <div class="when">May 2026 to Jul 2026 · Hsinchu, Taiwan</div>
 <p class="lede">Classical error correction assumes every bit stays in its slot: bit 37 arrives as bit 37, possibly flipped. Delete one bit and every bit after it shifts, so a decoder comparing position by position sees dozens of errors where there was one. I benchmarked machine learning decoders against that channel, and the most useful thing I built was the measurement that showed how bad it is.</p>
 <div class="tags"><span>Error correction coding</span><span>Insertion deletion channel</span><span>Transformers</span><span>PyTorch</span><span>Levenshtein alignment</span><span>CTC</span></div>
+<p class="src kinds"><span class="kind measured">Measured</span> every model score quoted: 2.092 RMSE against 2.622 and 2.906, BER 0.5859, the loss values, the dataset scale. <span class="kind illustrative">Illustrative</span> the channel you corrupt at the top is a fresh random draw at whatever rates you set, not a sample from the project dataset.</p>
 
 <section class="sub" id="channel">
 <h2>Break a codeword</h2>
@@ -89,7 +100,7 @@
 
 <section class="sub" id="ctc">
 <h2>The failure, diagnosed</h2>
-<p>The CTC model's loss moved from 0.7388 to 0.6856 over thirty epochs and stopped. That number is not random: ln 2 is 0.6931, the loss of a model that predicts a fair coin for every bit and ignores its input. Its bit error rate was 0.5859, seven times worse than copying the input unchanged, and its block error rate was 1.0.</p>
+<p>The CTC model's loss moved from 0.7388 to 0.6856 over thirty epochs and stopped. CTC sums probability over every alignment and carries a blank class, so the absolute scale of its loss depends on the formulation, the reduction and the sequence geometry, and there is no universal floor to read off it. What the plateau near ln 2 is worth is as one signal among three. Taken with a bit error rate of 0.5859, seven times worse than copying the input unchanged, a block error rate of 1.0, and the failed memorization test below, it is consistent with collapse toward a near-uninformative prediction rather than useful sequence learning.</p>
 <div class="panel">
   <div class="split">
     <canvas id="ctcplot" aria-label="CTC loss against the ln 2 floor"></canvas>
@@ -437,7 +448,7 @@
     c.fillRect(0, 0, w, h);
     const p = new Site.Plot(c, { x: [0, 31], y: [0.66, 0.76], box: { x: 50, y: 22, w: w - 62, h: h - 58 }, title: 'CTC training loss', xlabel: 'epoch' });
     p.axes();
-    p.hline(Math.log(2), { color: C.red, label: 'ln 2 = 0.6931, a coin flip per bit' });
+    p.hline(Math.log(2), { color: C.red, label: 'ln 2 = 0.6931 reference' });
     p.line([[1, 0.7388], [30, 0.6856]], { color: C.muted, width: 1, dash: [3, 4] });
     p.dot(1, 0.7388, { color: C.amber, ring: true });
     p.dot(30, 0.6856, { color: C.amber, ring: true });
@@ -451,7 +462,7 @@
     c.fillStyle = C.panel;
     c.fillRect(0, 0, w, h);
     const copy = trialStats ? trialStats.ber : lastCopyBer;
-    const data = [['copy the input', copy, C.green, 'this channel'], ['coin flip', 0.5, C.muted, 'ln 2 floor'], ['CTC model', 0.5859, C.red, 'recorded'], ['memorize 128', 0.5022, C.red, 'recorded']];
+    const data = [['copy the input', copy, C.green, 'this channel'], ['coin flip', 0.5, C.muted, 'guessing'], ['CTC model', 0.5859, C.red, 'recorded'], ['memorize 128', 0.5022, C.red, 'recorded']];
     const p = new Site.Plot(c, { x: [0, 4], y: [0, 0.7], box: { x: 44, y: 22, w: w - 56, h: h - 58 }, title: 'bit error rate, lower is better', xticks: [] });
     p.axes();
     data.forEach(function (d, i) {

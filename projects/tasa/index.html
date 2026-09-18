@@ -3,14 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pointing a satellite with spinning wheels — Hsin Ya Lin</title>
-<meta name="description" content="Slew a satellite with a reaction wheel, allocate torque across a four wheel pyramid, and see what 727 ms of loop latency does to a controller.">
+<title>Reaction Wheel Attitude Control, Taiwan Space Agency | Hsin Ya Lin</title>
+<meta name="description" content="Slew a satellite with a reaction wheel, allocate torque across a four-wheel pyramid, and see what 727 ms of loop latency does to a controller. ESP32-S3 firmware, KiCad bench hardware, hardware in the loop.">
+<link rel="canonical" href="https://joshua-hsinya-lin.github.io/projects/tasa/index.html">
+<meta property="og:title" content="Reaction Wheel Attitude Control, Taiwan Space Agency">
+<meta property="og:description" content="Slew a satellite with a reaction wheel, allocate torque across a four-wheel pyramid, and see what 727 ms of loop latency does to a controller. ESP32-S3 firmware, KiCad bench hardware, hardware in the loop.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://joshua-hsinya-lin.github.io/projects/tasa/index.html">
+<meta property="og:image" content="https://joshua-hsinya-lin.github.io/profile.jpg">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Reaction Wheel Attitude Control, Taiwan Space Agency">
+<meta name="twitter:description" content="Slew a satellite with a reaction wheel, allocate torque across a four-wheel pyramid, and see what 727 ms of loop latency does to a controller. ESP32-S3 firmware, KiCad bench hardware, hardware in the loop.">
+<meta name="twitter:image" content="https://joshua-hsinya-lin.github.io/profile.jpg">
 <link rel="stylesheet" href="../../shared/site.css">
 <script src="../../shared/site.js"></script>
 <style>
 .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
 @media (max-width: 760px) { .split { grid-template-columns: 1fr; } }
-.tiers { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.7rem; margin: 1rem 0; }
+.tiers { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 0.7rem; margin: 1rem 0; }
 .tier { background: var(--bg2); border: 1px solid var(--rule); border-radius: 10px; padding: 0.7rem 0.85rem; font-size: 0.92rem; }
 .tier b { display: block; margin-bottom: 0.2rem; }
 .tier span { display: block; color: var(--muted); font-family: var(--mono); font-size: 0.76rem; margin-bottom: 0.3rem; }
@@ -22,8 +32,9 @@
 <div class="kicker">Taiwan Space Agency · Satellite Electronics Intern</div>
 <h1>Pointing a satellite with spinning wheels</h1>
 <div class="when">Jul 2026 to Aug 2026 · Hsinchu, Taiwan</div>
-<p class="lede">A satellite has nothing to push against. To turn it, you spin a wheel inside it one way and the body turns the other. I built the bench electronics and the flight firmware that command four such wheels, and the simulator that predicted what they would do, then put the two together on an air bearing stage.</p>
+<p class="lede">A satellite has nothing to push against. To turn it, you spin a wheel inside it one way and the body turns the other. I built the bench electronics and the attitude control firmware that command four such wheels, and the simulator that predicted what they would do, then put the two together on an air-bearing stage.</p>
 <div class="tags"><span>Attitude control</span><span>ESP32-S3 firmware</span><span>RS-422</span><span>IMU</span><span>KiCad</span><span>MATLAB and Simulink</span><span>Hardware in the loop</span></div>
+<p class="src kinds"><span class="kind measured">Measured</span> the figures quoted in the text: the 727 ms to 263 ms latency cut, 65 hardware-in-the-loop runs, the size of the simulator and the trade study. <span class="kind illustrative">Illustrative</span> every interactive on this page. The inertias, gains, torques and delays you can move are generic values chosen so the physics is visible, not the values TASA uses, which are confidential.</p>
 
 <section class="sub" id="wheel">
 <h2>Turn the satellite</h2>
@@ -49,9 +60,10 @@
     <canvas id="pyr" aria-label="Four wheel pyramid"></canvas>
     <canvas id="cap" aria-label="Axis torque capacity against mounting angle"></canvas>
   </div>
+  <div class="btnrow" id="pyrview"></div>
   <div class="controls" id="pyrctl"></div>
   <div id="pyrro"></div>
-  <p class="hint">Drag on the pyramid to rotate the view. Null motion adds a pattern of wheel torques that cancels exactly, so the body feels nothing while the wheels redistribute momentum among themselves. That one dimensional null space is what four wheels buy over three.</p>
+  <p class="hint">Drag the pyramid to rotate the view, or use the view buttons. Null motion adds a pattern of wheel torques that cancels exactly, so the body feels nothing while the wheels redistribute momentum among themselves. That one-dimensional null space is what four wheels buy over three.</p>
 </div>
 <p>Two angles fall out of the geometry, and the plot marks both. Where the pitch and roll capacity curve, 2 cos &beta;, crosses the yaw capacity curve, 4 sin &beta;, is 26.57&deg;, the angle at which every axis can be driven equally hard. Where the diagonal of the geometry matrix times its transpose balances, 2 cos<sup>2</sup> &beta; = 4 sin<sup>2</sup> &beta;, is 35.26&deg;, the angle that minimizes the worst case wheel effort. They answer different questions, and choosing a mounting angle means choosing which question you are asking.</p>
 </section>
@@ -70,7 +82,7 @@
 
 <section class="sub" id="bench">
 <h2>The bench</h2>
-<p>None of this exists until the wheel can be commanded from a board. The test circuit I designed in KiCad and built puts an ESP32-S3 at the center: a nine axis IMU on I2C for attitude feedback, an RS-422 transceiver driving four wheel modules on a shared bus, a DC-DC buck converter for power, and safety interlocks in both hardware and software. Operator telemetry runs over a second transport back to a laptop.</p>
+<p>None of this exists until the wheel can be commanded from a board. The test circuit I designed in KiCad and built puts an ESP32-S3 at the center: a nine-axis IMU on I2C for attitude feedback, an RS-422 transceiver driving four wheel modules on a shared bus, a DC-DC buck converter for power, and safety interlocks in both hardware and software. Operator telemetry runs over a second transport back to a laptop.</p>
 <div class="panel">
   <canvas id="blk" aria-label="Block diagram of the bench electronics"></canvas>
   <p class="hint">Dots are traffic: IMU samples into the controller, command frames out to the wheels and their replies back, telemetry to the operator.</p>
@@ -84,12 +96,12 @@
   <div class="tier"><b>Model in the loop</b><span>MATLAB and Simulink</span>Rigid body dynamics, quaternion control, pyramid torque allocation, sensor and motor dynamics, orbital disturbances. About 20,000 lines across 157 modules, with 100 testbenches.</div>
   <div class="tier"><b>Software in the loop</b><span>the control law as C</span>The same controller compiled for the target and checked against the model before it ever touched hardware.</div>
   <div class="tier"><b>On target</b><span>ESP32-S3</span>Firmware closing the loop through the real IMU and real wheels, with the wire protocol verified byte by byte.</div>
-  <div class="tier"><b>Hardware in the loop</b><span>air bearing stage</span>65 runs against a physical twin of the model. Where the two disagreed, the model was corrected, and the corrected model drove the sizing study.</div>
+  <div class="tier"><b>Hardware in the loop</b><span>air-bearing stage</span>65 runs against a physical twin of the model. Where the two disagreed, the model was corrected, and the corrected model drove the sizing study.</div>
 </div>
 <p>The deliverable was an actuator sizing and trade study across 8 parameters, 12 metrics and 6 slewing maneuvers, written up in a 768 paragraph technical report with 21 tables and 40 figures, and an A1 conference poster.</p>
 <div class="stats">
   <div class="stat"><b>727 → 263 ms</b><span>loop latency, before and after</span></div>
-  <div class="stat"><b>65</b><span>hardware in the loop runs</span></div>
+  <div class="stat"><b>65</b><span>hardware-in-the-loop runs</span></div>
   <div class="stat"><b>20,000</b><span>lines of MATLAB, 157 modules, 100 testbenches</span></div>
   <div class="stat"><b>10,000</b><span>lines of C and C++, 30 modules</span></div>
   <div class="stat"><b>8 × 12 × 6</b><span>parameters, metrics, maneuvers in the trade study</span></div>
@@ -143,31 +155,33 @@
   const sW = Site.slider(satctl, { label: 'wheel limit', min: 50, max: 600, step: 10, value: P.wmax, fmt: function (v) { return (v * 60 / TAU).toFixed(0) + ' rpm'; }, onInput: function (v) { P.wmax = v; } });
   const sI = Site.slider(satctl, { label: 'body inertia', min: 0.5, max: 6, step: 0.1, value: P.Ib, unit: 'kg·m²', digits: 1, onInput: function (v) { P.Ib = v; } });
   const sD = Site.slider(satctl, { label: 'disturbance', min: 0, max: 0.5, step: 0.01, value: 0, unit: 'N·m', onInput: function (v) { P.dist = v; } });
+  const sTgt = Site.slider(satctl, { label: 'target heading', min: -180, max: 180, step: 1, value: 90, unit: '°', digits: 0, onInput: function (v) { S.tgt = v * Math.PI / 180; } });
+  function setTarget(rad) {
+    S.tgt = wrap(rad);
+    sTgt.value = Math.round(S.tgt * 180 / Math.PI);
+  }
   const satrow = document.getElementById('satrow');
   function preset(o) { Object.assign(P, o); sKp.value = P.Kp; sKd.value = P.Kd; sT.value = P.tmax; sW.value = P.wmax; sI.value = P.Ib; sD.value = P.dist; S.W = 0; S.om = 0; }
-  Site.button(satrow, { label: 'Well damped', onClick: function () { preset({ Kp: 3, Kd: 2.6, tmax: 0.5, wmax: 400, Ib: 2, dist: 0 }); S.tgt = wrap(S.th + Math.PI / 2); } });
-  Site.button(satrow, { label: 'Too little damping', onClick: function () { preset({ Kp: 6, Kd: 0.6, tmax: 0.5, wmax: 400, Ib: 2, dist: 0 }); S.tgt = wrap(S.th + Math.PI / 2); } });
+  Site.button(satrow, { label: 'Well damped', onClick: function () { preset({ Kp: 3, Kd: 2.6, tmax: 0.5, wmax: 400, Ib: 2, dist: 0 }); setTarget(S.th + Math.PI / 2); } });
+  Site.button(satrow, { label: 'Too little damping', onClick: function () { preset({ Kp: 6, Kd: 0.6, tmax: 0.5, wmax: 400, Ib: 2, dist: 0 }); setTarget(S.th + Math.PI / 2); } });
   Site.button(satrow, { label: 'Saturate the wheel', onClick: function () { preset({ Kp: 3, Kd: 2.6, tmax: 0.5, wmax: 120, Ib: 2, dist: 0.3 }); } });
-  Site.button(satrow, { label: 'Slew 180°', primary: true, onClick: function () { S.tgt = wrap(S.th + Math.PI); } });
+  Site.button(satrow, { label: 'Slew 180°', primary: true, onClick: function () { setTarget(S.th + Math.PI); } });
   const satro = Site.readouts(document.getElementById('satro'), [
     { key: 'err', label: 'heading error', color: 'amber' }, { key: 'rate', label: 'body rate', color: 'cyan' },
     { key: 'W', label: 'wheel', color: 'pink' }, { key: 'tq', label: 'wheel torque' }, { key: 'H', label: 'body H + wheel H', color: 'green' }
   ]);
 
   const sat = Site.canvas(document.getElementById('sat'), { aspect: 0.9 });
-  function pickTarget(ev) {
-    const rect = sat.el.getBoundingClientRect();
-    const x = ev.clientX - rect.left - sat.w / 2;
-    const y = ev.clientY - rect.top - sat.h / 2;
-    if (Math.hypot(x, y) < 10) return;
-    S.tgt = Math.atan2(y, x) + Math.PI / 2;
+  /* The ring is a shortcut, not the only way in: the heading slider above
+     sets the same variable, so nothing here needs a mouse. */
+  function pickTarget(x, y) {
+    const dx = x - sat.w / 2;
+    const dy = y - sat.h / 2;
+    if (Math.hypot(dx, dy) < 10) return;
+    setTarget(Math.atan2(dy, dx) + Math.PI / 2);
   }
-  let dragging = false;
-  sat.el.addEventListener('pointerdown', function (e) { dragging = true; pickTarget(e); e.preventDefault(); });
-  sat.el.addEventListener('pointermove', function (e) { if (dragging) pickTarget(e); });
-  window.addEventListener('pointerup', function () { dragging = false; });
+  Site.drag(sat.el, { down: pickTarget, move: pickTarget });
   sat.el.style.cursor = 'crosshair';
-  sat.el.style.touchAction = 'pan-y';
   function drawSat() {
     const c = sat.ctx, w = sat.w, h = sat.h;
     c.fillStyle = C.panel;
@@ -330,11 +344,24 @@
   ]);
   const pyr = Site.canvas(document.getElementById('pyr'), { aspect: 0.9 });
   let pd = null;
-  pyr.el.addEventListener('pointerdown', function (e) { pd = [e.clientX, e.clientY, Q.yaw, Q.pitch]; e.preventDefault(); });
-  window.addEventListener('pointermove', function (e) { if (!pd) return; Q.yaw = pd[2] + (e.clientX - pd[0]) * 0.01; Q.pitch = Site.clamp(pd[3] + (e.clientY - pd[1]) * 0.01, -1.4, 1.4); drawPyr(); });
-  window.addEventListener('pointerup', function () { pd = null; });
+  Site.drag(pyr.el, {
+    down: function (x, y) { pd = [x, y, Q.yaw, Q.pitch]; },
+    move: function (x, y) {
+      if (!pd) return;
+      Q.yaw = pd[2] + (x - pd[0]) * 0.01;
+      Q.pitch = Site.clamp(pd[3] + (y - pd[1]) * 0.01, -1.4, 1.4);
+      drawPyr();
+    },
+    up: function () { pd = null; }
+  });
   pyr.el.style.cursor = 'grab';
-  pyr.el.style.touchAction = 'pan-y';
+  const viewrow = document.getElementById('pyrview');
+  function turn(dy, dp) { Q.yaw += dy; Q.pitch = Site.clamp(Q.pitch + dp, -1.4, 1.4); drawPyr(); }
+  Site.button(viewrow, { label: 'Rotate left', onClick: function () { turn(-0.25, 0); } });
+  Site.button(viewrow, { label: 'Rotate right', onClick: function () { turn(0.25, 0); } });
+  Site.button(viewrow, { label: 'Tilt up', onClick: function () { turn(0, -0.2); } });
+  Site.button(viewrow, { label: 'Tilt down', onClick: function () { turn(0, 0.2); } });
+  Site.button(viewrow, { label: 'Reset view', onClick: function () { Q.yaw = 0.7; Q.pitch = 0.5; drawPyr(); } });
   function project(v, w, h) {
     const cy = Math.cos(Q.yaw), sy = Math.sin(Q.yaw), cp = Math.cos(Q.pitch), sp = Math.sin(Q.pitch);
     const x1 = v[0] * cy - v[1] * sy;
@@ -495,10 +522,14 @@
     const p = new Site.Plot(c, { x: [0, T], y: [-0.6, 2.4], box: { x: 44, y: 22, w: w - 56, h: h - 60 }, title: 'step response, target = 1', xlabel: 'seconds' });
     p.axes();
     p.hline(1, { color: C.muted, label: 'target', align: 'left' });
-    p.line(stepResponse(0.727, T), { color: 'rgba(255,107,107,0.55)', width: 1.5 });
-    p.line(stepResponse(0.263, T), { color: 'rgba(140,233,154,0.6)', width: 1.5 });
+    p.line(stepResponse(0.727, T), { color: 'rgba(255,107,107,0.75)', width: 1.5, dash: [9, 4] });
+    p.line(stepResponse(0.263, T), { color: 'rgba(140,233,154,0.85)', width: 1.5, dash: [2, 4] });
     p.line(stepResponse(lD.value / 1000, T), { color: C.amber, width: 2.5 });
-    p.legend([{ label: '727 ms', color: 'rgba(255,107,107,0.8)' }, { label: '263 ms', color: 'rgba(140,233,154,0.8)' }, { label: lD.value.toFixed(0) + ' ms', color: C.amber }], { x: p.box.x + p.box.w - 90, y: p.box.y + 12 });
+    p.legend([
+      { label: '727 ms, as found', color: 'rgba(255,107,107,0.95)', dash: [9, 4] },
+      { label: '263 ms, after the work', color: 'rgba(140,233,154,0.95)', dash: [2, 4] },
+      { label: lD.value.toFixed(0) + ' ms, yours', color: C.amber }
+    ], { x: p.box.x + p.box.w - 170, y: p.box.y + 12 });
   }
   drawLat();
   lat.onresize = drawLat;

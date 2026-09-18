@@ -3,8 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>A low noise amplifier — Hsin Ya Lin</title>
-<meta name="description" content="Purdue IEEE Microwave is designing a low noise amplifier this semester. Until there is a design to show, here is why the first stage decides the noise of the whole receiver.">
+<title>Low Noise Amplifier and the Friis Noise Budget, Purdue IEEE | Hsin Ya Lin</title>
+<meta name="description" content="Purdue IEEE Microwave is designing a low-noise amplifier this semester. No design exists yet, so this page explains why the first stage after the antenna sets the noise figure of the whole receiver.">
+<link rel="canonical" href="https://joshua-hsinya-lin.github.io/projects/lna/index.html">
+<meta property="og:title" content="Low Noise Amplifier and the Friis Noise Budget, Purdue IEEE">
+<meta property="og:description" content="Purdue IEEE Microwave is designing a low-noise amplifier this semester. No design exists yet, so this page explains why the first stage after the antenna sets the noise figure of the whole receiver.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://joshua-hsinya-lin.github.io/projects/lna/index.html">
+<meta property="og:image" content="https://joshua-hsinya-lin.github.io/profile.jpg">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Low Noise Amplifier and the Friis Noise Budget, Purdue IEEE">
+<meta name="twitter:description" content="Purdue IEEE Microwave is designing a low-noise amplifier this semester. No design exists yet, so this page explains why the first stage after the antenna sets the noise figure of the whole receiver.">
+<meta name="twitter:image" content="https://joshua-hsinya-lin.github.io/profile.jpg">
 <link rel="stylesheet" href="../../shared/site.css">
 <script src="../../shared/site.js"></script>
 </head>
@@ -12,14 +22,15 @@
 <header class="site-header" data-root="../../"></header>
 <main class="project">
 <div class="kicker">Purdue IEEE Microwave · starting Fall 2026</div>
-<h1>A low noise amplifier</h1>
+<h1>A low-noise amplifier</h1>
 <div class="when">Fall 2026 · in progress</div>
-<p class="lede">The Purdue IEEE Microwave chapter is designing a low noise amplifier this semester and I am on it, working in Altium Designer. There is no design to show yet, so this page is honest about its tense. It explains the problem the amplifier solves, and it will fill in with the matching network, the layout and the measured noise figure as they exist.</p>
+<p class="lede">The Purdue IEEE Microwave chapter is designing a low-noise amplifier this semester and I am on it, working in Altium Designer. There is no design to show yet, so this page is honest about its tense. It explains the problem the amplifier solves, and it will fill in with the matching network, the layout and the measured noise figure as they exist.</p>
 <div class="tags"><span>RF</span><span>Noise figure</span><span>Altium Designer</span><span>upcoming</span></div>
+<p class="src kinds"><span class="kind model">Simulation</span> the Friis cascade is computed from the noise figures and gains you set. Nothing on this page is measured, because the amplifier does not exist yet.</p>
 
 <section class="sub" id="friis">
 <h2>Why the first stage decides the noise</h2>
-<p>Every stage in a receiver adds noise. Friis' formula says how the stages combine: the total noise factor is the first stage's noise factor, plus the second stage's excess noise divided by the first stage's gain, plus the third stage's excess noise divided by the first two gains, and so on. Each later stage's contribution is shrunk by all the gain before it. So the stage that sits right after the antenna sets the floor for the whole chain, and it has to be both quiet and have enough gain to make everything after it not matter. That is the job of a low noise amplifier. Move the sliders and watch the contributions.</p>
+<p>Every stage in a receiver adds noise. Friis' formula says how the stages combine: the total noise factor is the first stage's noise factor, plus the second stage's excess noise divided by the first stage's gain, plus the third stage's excess noise divided by the first two gains, and so on. Each later stage's contribution is shrunk by all the gain before it. So the stage that sits right after the antenna sets the floor for the whole chain, and it has to be both quiet and have enough gain to make everything after it not matter. That is the job of a low-noise amplifier. Move the sliders and watch the contributions.</p>
 <div class="panel">
   <canvas id="fr" aria-label="Noise contribution by stage"></canvas>
   <div class="controls" id="frctl"></div>

@@ -3,69 +3,228 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Hsin Ya Lin (Joshua) — interactive portfolio</title>
-<meta name="description" content="Hsin Ya Lin (Joshua), Purdue electrical engineering. Projects you can operate: a satellite attitude controller, an FPGA matrix coprocessor, a boost converter, a battery protection board, and more.">
+<title>Hsin Ya Lin (Joshua) — Electrical Engineering Portfolio | Purdue, hardware and embedded</title>
+<meta name="description" content="Purdue electrical engineering portfolio you can operate: reaction wheel attitude control, an FPGA matrix coprocessor, a RISC-V Kalman filter accelerator, a boost converter, a battery protection PCB. Seeking Summer 2027 internships.">
+<link rel="canonical" href="https://joshua-hsinya-lin.github.io/index.html">
+<meta property="og:title" content="Hsin Ya Lin (Joshua) — Electrical Engineering Portfolio">
+<meta property="og:description" content="Projects you can operate: spin a reaction wheel, step an FPGA state machine, corrupt a codeword, overload a battery pack, hear an equalizer.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://joshua-hsinya-lin.github.io/index.html">
+<meta property="og:image" content="https://joshua-hsinya-lin.github.io/profile.jpg">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Hsin Ya Lin (Joshua) — Electrical Engineering Portfolio">
+<meta name="twitter:description" content="Projects you can operate: reaction wheel control, an FPGA coprocessor, a battery protection board, a boost converter.">
+<meta name="twitter:image" content="https://joshua-hsinya-lin.github.io/profile.jpg">
 <link rel="stylesheet" href="shared/site.css">
 <script src="shared/site.js"></script>
 <script src="projects/manifest.js"></script>
+<style>
+.upcoming-head { margin-top: 2.4rem; }
+.upcoming-head h2 { font-size: 1.1rem; }
+.upcoming-head p { color: var(--muted); font-size: 0.9rem; max-width: 60ch; margin: 0; }
+.cards.upcoming { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); max-width: 640px; }
+.legend-note { color: var(--muted); font-size: 0.88rem; max-width: 64ch; }
+.legend-note .kind { margin: 0 0.15rem; vertical-align: baseline; }
+</style>
 </head>
 <body>
 <header class="site-header" data-root="./"></header>
 
 <main>
 <section class="hero">
-  <img src="profile.jpg" alt="Photo of Hsin Ya Lin">
+  <img src="profile.jpg" alt="Photo of Hsin Ya Lin" width="112" height="112">
   <div>
     <h1>Hsin Ya Lin <span class="alias">(Joshua)</span></h1>
-    <p class="who">Electrical engineering at Purdue, graduating December 2028. I build boards, write the firmware that runs on them, and bring them up on the bench.</p>
+    <p class="who">Electrical engineering at Purdue. I design boards, write the firmware that runs on them, take RTL through to layout, and bring all of it up on the bench.</p>
     <p class="links">
+      <a class="cta" href="resume.pdf">Resume PDF</a>
       <a href="mailto:lin2082@purdue.edu">lin2082@purdue.edu</a>
       <a href="https://www.linkedin.com/in/hsin-ya-lin-70349826a" target="_blank" rel="noopener">LinkedIn</a>
       <a href="https://github.com/Joshua-HsinYa-Lin" target="_blank" rel="noopener">GitHub</a>
+      <a href="about/index.html">Full resume and project index</a>
     </p>
   </div>
 </section>
 
-<p class="intro">A résumé says what I did. Each project below is something you can operate, so you find out by touching it: spin up a reaction wheel, type a matrix into an FPGA, corrupt a codeword, overload a battery pack, hear an equalizer. Every curve on these pages is computed from the physics, and every number quoted is one that was actually measured.</p>
+<ul class="facts">
+  <li><b>Purdue</b> BS Electrical Engineering</li>
+  <li><b>GPA 3.98</b> / 4.0</li>
+  <li>Graduating <b>December 2028</b></li>
+  <li>Seeking <b>Summer 2027</b> internships</li>
+  <li>PCB design and bring-up</li>
+  <li>Embedded C and C++</li>
+  <li>SystemVerilog, RTL to layout</li>
+</ul>
+
+<p class="intro">A resume says what I built. These projects let you operate the ideas behind it: spin a reaction wheel, step through an FPGA state machine, corrupt a codeword, overload a battery pack, or hear an equalizer.</p>
+<p class="legend-note">Every page labels what you are looking at. <span class="kind measured">Measured</span> is bench or lab data. <span class="kind model">Simulation</span> is physics computed on the page from the real design. <span class="kind illustrative">Illustrative</span> uses typical or generic values chosen so the behavior is visible, never presented as something I measured.</p>
 
 <section id="projects">
   <h2>Projects</h2>
-  <ul class="cards" id="cards"></ul>
+  <ul class="cards" id="cards">
+
+    <li class="card" data-slug="socet">
+      <a class="wrap" href="projects/socet/index.html">
+        <canvas class="preview" aria-hidden="true"></canvas>
+        <span class="body">
+          <h3>A matrix coprocessor on an FPGA</h3>
+          <span class="hook">Type a matrix on the keypad and watch a 33-state machine, three memory regions and a valid/ready handshake do the arithmetic, one clock at a time.</span>
+          <span class="meta">Purdue SoCET · Jan 2026 to May 2026</span>
+        </span>
+      </a>
+    </li>
+
+    <li class="card" data-slug="socet-soc">
+      <a class="wrap" href="projects/socet-soc/index.html">
+        <canvas class="preview" aria-hidden="true"></canvas>
+        <span class="body">
+          <h3>A Kalman filter in hardware <span class="status">in progress</span></h3>
+          <span class="hook">A RISC-V system on chip with an attitude filter accelerator. Watch a Kalman filter fuse a gyro and an accelerometer, then see how the whole filter becomes a straight line of descriptors over one multiplier.</span>
+          <span class="meta">Purdue SoCET · Fall 2026</span>
+        </span>
+      </a>
+    </li>
+
+    <li class="card" data-slug="tasa">
+      <a class="wrap" href="projects/tasa/index.html">
+        <canvas class="preview" aria-hidden="true"></canvas>
+        <span class="body">
+          <h3>Pointing a satellite with spinning wheels</h3>
+          <span class="hook">Spin a wheel one way and the body turns the other. Slew a satellite, split torque across a four-wheel pyramid, and feel what 727 ms of latency does to a control loop.</span>
+          <span class="meta">Taiwan Space Agency · Jul to Aug 2026</span>
+        </span>
+      </a>
+    </li>
+
+    <li class="card" data-slug="ece20007">
+      <a class="wrap" href="projects/ece20007/index.html">
+        <canvas class="preview" aria-hidden="true"></canvas>
+        <span class="body">
+          <h3>A boost converter and an equalizer, measured against their simulations</h3>
+          <span class="hook">Drag the duty cycle and watch the inductor pump 5 V up to 30 V. Move three faders and hear the bands. Then see why the bench read 9.5% below the simulation.</span>
+          <span class="meta">Purdue ECE 20007 · Spring 2026</span>
+        </span>
+      </a>
+    </li>
+
+    <li class="card" data-slug="lunabotics">
+      <a class="wrap" href="projects/lunabotics/index.html">
+        <canvas class="preview" aria-hidden="true"></canvas>
+        <span class="body">
+          <h3>The board that disconnects the battery</h3>
+          <span class="hook">Six cells, two stacked protection ICs, and a load. Overload it, overcharge it, overheat it, and watch the FETs open before anything else does.</span>
+          <span class="meta">Purdue Lunabotics · Sep 2025 to Aug 2026</span>
+        </span>
+      </a>
+    </li>
+
+    <li class="card" data-slug="nycu">
+      <a class="wrap" href="projects/nycu/index.html">
+        <canvas class="preview" aria-hidden="true"></canvas>
+        <span class="body">
+          <h3>Decoding bits that moved</h3>
+          <span class="hook">Delete one bit and every bit after it reads as wrong. Corrupt a codeword, compare position scoring against alignment, and see why a Transformer was pointed at it.</span>
+          <span class="meta">NYCU Institute of Communications · May to Jul 2026</span>
+        </span>
+      </a>
+    </li>
+
+    <li class="card" data-slug="frc8020">
+      <a class="wrap" href="projects/frc8020/index.html">
+        <canvas class="preview" aria-hidden="true"></canvas>
+        <span class="body">
+          <h3>Wiring a robot so a fault finds itself</h3>
+          <span class="hook">A short appears somewhere in the harness. Find it in a single harness, then in one with a labeled connector at every subsystem. Count your steps.</span>
+          <span class="meta">FIRST Robotics Team 8020 · Aug 2023 to Jun 2024</span>
+        </span>
+      </a>
+    </li>
+
+    <li class="card" data-slug="trace">
+      <a class="wrap" href="projects/trace/index.html">
+        <canvas class="preview" aria-hidden="true"></canvas>
+        <span class="body">
+          <h3>How much of your weight does a helper carry?</h3>
+          <span class="hook">Lean on a rod held by someone else and watch the knee unload, the ankle push sideways, and the helper's wrist take the difference. Then compare against motion capture.</span>
+          <span class="meta">Purdue TRACE Laboratory · Jan 2026 to present</span>
+        </span>
+      </a>
+    </li>
+
+  </ul>
+</section>
+
+<section id="upcoming" class="upcoming-head">
+  <h2>Starting this semester</h2>
+  <p>Work with no design and no measurement yet. It is here so the page is honest about what exists, not to pad the list.</p>
+  <ul class="cards upcoming">
+    <li class="card" data-slug="lna">
+      <a class="wrap" href="projects/lna/index.html">
+        <canvas class="preview" aria-hidden="true"></canvas>
+        <span class="body">
+          <h3>A low-noise amplifier <span class="status">no design yet</span></h3>
+          <span class="hook">Purdue IEEE Microwave is designing one this semester and I am on it. Until there is a design to show, here is why the first stage decides the noise of the whole receiver.</span>
+          <span class="meta">Purdue IEEE · Fall 2026</span>
+        </span>
+      </a>
+    </li>
+  </ul>
 </section>
 
 <section id="about" class="sub" style="margin-top: 3rem;">
   <h2>About</h2>
-  <p>B.S. Electrical Engineering, Purdue University, expected December 2028, GPA 3.98/4.0. Right now I am on the Purdue SoCET team building a RISC-V system on chip, where my block is the SPI controller; in the TRACE Laboratory working on biomechanics from motion capture; and starting a low noise amplifier with Purdue IEEE Microwave.</p>
+  <p>BS Electrical Engineering, Purdue University, expected December 2028, GPA 3.98/4.0. Right now I am on the Purdue SoCET team building a RISC-V system on chip, where my block is the SPI controller; in the TRACE Laboratory working on biomechanics from motion capture; and starting a low-noise amplifier with Purdue IEEE Microwave.</p>
   <p>Schematic capture and PCB layout in KiCad and Altium, board assembly and bring-up, embedded C and C++ on microcontrollers, SystemVerilog from RTL through layout, and the MATLAB and Python modeling behind the control and signal work. Looking for Summer 2027 internships in hardware, embedded, and digital design. Outside the lab I do triathlon.</p>
-  <p><a href="about/index.html">The written version, with every entry and its figures.</a></p>
+  <p><a href="about/index.html">Full resume and project index</a></p>
 </section>
 </main>
 
 <footer class="site-footer"></footer>
 
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Person",
+  "name": "Hsin Ya Lin",
+  "alternateName": "Joshua Lin",
+  "url": "https://joshua-hsinya-lin.github.io/",
+  "email": "mailto:lin2082@purdue.edu",
+  "description": "Electrical engineering student at Purdue University working on board-level hardware, embedded firmware, and digital design.",
+  "affiliation": { "@type": "CollegeOrUniversity", "name": "Purdue University" },
+  "alumniOf": { "@type": "CollegeOrUniversity", "name": "Purdue University" },
+  "knowsAbout": ["PCB design", "Embedded firmware", "SystemVerilog", "Attitude control", "Power electronics"],
+  "sameAs": [
+    "https://github.com/Joshua-HsinYa-Lin",
+    "https://www.linkedin.com/in/hsin-ya-lin-70349826a"
+  ]
+}
+</script>
+
 <script>
+/* The cards above are real HTML and work without this script. All it does is
+   attach a live canvas preview to each one. A preview that throws is stopped
+   and left as a plain panel; navigation is never affected. */
 Site.ready(function () {
-  const ul = document.getElementById('cards');
+  if (!window.PROJECTS) return;
   window.PROJECTS.forEach(function (p) {
-    const li = document.createElement('li');
-    li.className = 'card';
-    li.innerHTML =
-      '<a class="wrap" href="projects/' + p.slug + '/index.html">' +
-      '<canvas aria-hidden="true"></canvas>' +
-      '<div class="body">' +
-      '<h3>' + p.title + (p.status ? '<span class="status">' + p.status + '</span>' : '') + '</h3>' +
-      '<p class="hook">' + p.hook + '</p>' +
-      '<div class="meta">' + p.when + '</div>' +
-      '</div></a>';
-    ul.appendChild(li);
-    const cv = li.querySelector('canvas');
+    const card = document.querySelector('.card[data-slug="' + p.slug + '"]');
+    if (!card) return;
+    const cv = card.querySelector('canvas.preview');
+    if (!cv || !p.preview) return;
     const st = Site.canvas(cv, { aspect: 0.48 });
     const loop = Site.loop(cv, function (dt, t) {
       const c = st.ctx;
       c.clearRect(0, 0, st.w, st.h);
       c.fillStyle = Site.colors.panel;
       c.fillRect(0, 0, st.w, st.h);
-      try { p.preview(c, st.w, st.h, t, dt); } catch (e) { loop.stop(); }
+      try {
+        p.preview(c, st.w, st.h, t, dt);
+      } catch (e) {
+        console.error('preview failed for ' + p.slug, e);
+        loop.stop();
+        c.fillStyle = Site.colors.panel;
+        c.fillRect(0, 0, st.w, st.h);
+      }
     });
     loop.start();
   });

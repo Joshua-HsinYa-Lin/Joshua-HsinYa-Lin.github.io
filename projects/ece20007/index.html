@@ -3,8 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>A boost converter and an equalizer — Hsin Ya Lin</title>
-<meta name="description" content="Drag the duty cycle of a boost converter and watch the inductor pump. Move three faders on an analog equalizer and hear the bands. Both measured against LTspice.">
+<title>DC-DC Boost Converter and Analog Equalizer, Purdue ECE 20007 | Hsin Ya Lin</title>
+<meta name="description" content="Drag the duty cycle of a 555 driven boost converter and watch the inductor pump. Move three faders on a three band analog equalizer and hear the bands. Both reconciled against LTspice and bench measurement.">
+<link rel="canonical" href="https://joshua-hsinya-lin.github.io/projects/ece20007/index.html">
+<meta property="og:title" content="DC-DC Boost Converter and Analog Equalizer, Purdue ECE 20007">
+<meta property="og:description" content="Drag the duty cycle of a 555 driven boost converter and watch the inductor pump. Move three faders on a three band analog equalizer and hear the bands. Both reconciled against LTspice and bench measurement.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://joshua-hsinya-lin.github.io/projects/ece20007/index.html">
+<meta property="og:image" content="https://joshua-hsinya-lin.github.io/profile.jpg">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="DC-DC Boost Converter and Analog Equalizer, Purdue ECE 20007">
+<meta name="twitter:description" content="Drag the duty cycle of a 555 driven boost converter and watch the inductor pump. Move three faders on a three band analog equalizer and hear the bands. Both reconciled against LTspice and bench measurement.">
+<meta name="twitter:image" content="https://joshua-hsinya-lin.github.io/profile.jpg">
 <link rel="stylesheet" href="../../shared/site.css">
 <script src="../../shared/site.js"></script>
 <style>
@@ -25,6 +35,7 @@
 <div class="when">Jan 2026 to May 2026 · West Lafayette, Indiana</div>
 <p class="lede">Two breadboard circuits, each designed on paper, simulated in LTspice, built, and measured on the bench. The part worth showing is not that they worked. It is what the bench disagreed with, and why.</p>
 <div class="tags"><span>DC-DC</span><span>555 timer</span><span>MOSFET</span><span>LTspice</span><span>active filters</span><span>op-amps</span><span>oscilloscope</span></div>
+<p class="src kinds"><span class="kind measured">Measured</span> the three bench readings and their error against LTspice, and the oscilloscope capture. <span class="kind model">Simulation</span> the converter and the equalizer run live from the circuit equations using the component values in the schematics beside them.</p>
 
 <section class="sub" id="boost">
 <h2>Drag the duty cycle</h2>
@@ -278,14 +289,18 @@
       real.push([D, vi / (1 + r / ((1 - D) * (1 - D) * R))]);
     }
     p.hline(30, { color: C.red, label: '30 V ceiling' });
-    p.line(ideal, { color: C.amber, width: 2 });
-    p.line(real, { color: C.green, width: 2 });
+    p.line(ideal, { color: C.amber, width: 2, dash: [9, 4] });
+    p.line(real, { color: C.green, width: 2, marker: 'square', every: 24 });
     const pts = [[0.545, 10.75, '11 V target: 10.75 measured'], [0, 4.83, '5 V: 4.83 measured'], [0.667, 13.57, '15 V ceiling mode: 13.57 measured']];
     pts.forEach(function (q, i) {
       p.dot(q[0], q[1], { color: C.white, r: 4, ring: true });
       p.text(q[0], q[1], q[2], { color: C.ink, dx: 10, dy: i === 1 ? -10 : 8, size: 11 });
     });
-    p.legend([{ label: 'ideal Vin/(1−D)', color: C.amber }, { label: 'with series resistance r = ' + r.toFixed(2) + ' Ω into ' + (R >= 1000 ? (R / 1000).toFixed(2) + ' kΩ' : R.toFixed(0) + ' Ω'), color: C.green }]);
+    p.legend([
+      { label: 'ideal Vin/(1−D)', color: C.amber, dash: [9, 4] },
+      { label: 'with series resistance r = ' + r.toFixed(2) + ' Ω into ' + (R >= 1000 ? (R / 1000).toFixed(2) + ' kΩ' : R.toFixed(0) + ' Ω'), color: C.green, marker: 'square' },
+      { label: 'bench measurement', color: C.white, marker: 'dot' }
+    ]);
   }
   drawCurve();
   curve.onresize = drawCurve;
@@ -567,7 +582,7 @@
       playBtn.textContent = 'Play';
     }
   } });
-  Site.select(eqrow, { value: 'beat', options: [{ value: 'beat', label: 'Beat' }, { value: 'chord', label: 'Chord' }, { value: 'noise', label: 'Pink noise' }], onChange: function (v) { srcKind = v; if (playing) startSource(); } });
+  Site.select(eqrow, { label: 'Audio source', value: 'beat', options: [{ value: 'beat', label: 'Beat' }, { value: 'chord', label: 'Chord' }, { value: 'noise', label: 'Pink noise' }], onChange: function (v) { srcKind = v; if (playing) startSource(); } });
   Site.toggle(eqrow, { label: 'Buffers between stages', value: true, onChange: function (v) { buffered = v; drawEq(); } });
   drawEq();
   eqcan.onresize = drawEq;

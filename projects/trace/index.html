@@ -3,14 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>How much of your weight does a helper carry? — Hsin Ya Lin</title>
-<meta name="description" content="Lean on a rod held by a helper and watch the knee unload and the ankle push sideways. Then compare a toy model against motion capture driven inverse dynamics.">
+<title>Biomechanics from Motion Capture, AnyBody Inverse Dynamics, Purdue TRACE | Hsin Ya Lin</title>
+<meta name="description" content="Lean on a rod held by a helper and watch the knee unload and the ankle push sideways, then compare a static model against AnyBody inverse dynamics driven by ViCon motion capture.">
+<link rel="canonical" href="https://joshua-hsinya-lin.github.io/projects/trace/index.html">
+<meta property="og:title" content="Biomechanics from Motion Capture, AnyBody Inverse Dynamics, Purdue TRACE">
+<meta property="og:description" content="Lean on a rod held by a helper and watch the knee unload and the ankle push sideways, then compare a static model against AnyBody inverse dynamics driven by ViCon motion capture.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://joshua-hsinya-lin.github.io/projects/trace/index.html">
+<meta property="og:image" content="https://joshua-hsinya-lin.github.io/profile.jpg">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Biomechanics from Motion Capture, AnyBody Inverse Dynamics, Purdue TRACE">
+<meta name="twitter:description" content="Lean on a rod held by a helper and watch the knee unload and the ankle push sideways, then compare a static model against AnyBody inverse dynamics driven by ViCon motion capture.">
+<meta name="twitter:image" content="https://joshua-hsinya-lin.github.io/profile.jpg">
 <link rel="stylesheet" href="../../shared/site.css">
 <script src="../../shared/site.js"></script>
 <style>
 .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
 @media (max-width: 760px) { .split { grid-template-columns: 1fr; } }
-.cmp { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 0.6rem; margin-top: 0.7rem; }
+.cmp { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr)); gap: 0.6rem; margin-top: 0.7rem; }
 .cmp div { background: #0a0d12; border-radius: 8px; padding: 0.55rem 0.7rem; font-family: var(--mono); font-size: 0.8rem; color: var(--panel-muted); }
 .cmp div b { display: block; color: var(--panel-ink); font-size: 0.95rem; margin-top: 0.15rem; }
 .cmp div b.m { color: var(--amber); }
@@ -19,7 +29,7 @@
 .tree .ok { color: var(--green); font-weight: 600; }
 .tree .no { color: var(--red); }
 .tree .dim { color: var(--panel-muted); }
-.mods { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0.3rem; font-family: var(--mono); font-size: 0.8rem; margin: 0.6rem 0; }
+.mods { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr)); gap: 0.3rem; font-family: var(--mono); font-size: 0.8rem; margin: 0.6rem 0; }
 .mods span { background: var(--bg2); border: 1px solid var(--rule); border-radius: 6px; padding: 0.2rem 0.5rem; color: var(--ink2); }
 </style>
 </head>
@@ -31,6 +41,7 @@
 <div class="when">Jan 2026 to present · West Lafayette, Indiana</div>
 <p class="lede">Before a humanoid robot can help someone walk, you need to know what a human helper actually provides: how much load comes off the knee, where it goes instead, and what the helper's wrist has to hold. I take motion capture of two people walking together, one leaning on a rod the other holds, drive a musculoskeletal simulation with it, and pull the joint forces out.</p>
 <div class="tags"><span>Biomechanics</span><span>Inverse dynamics</span><span>Motion capture</span><span>AnyBody</span><span>MATLAB</span><span>HDF5</span><span>Human robot interaction</span></div>
+<p class="src kinds"><span class="kind measured">Measured</span> the joint loads and the correlation statistics: 600 N against 1600 N, 8 N&middot;m against 23 N&middot;m, R&sup2; 0.03, cosine similarity 0.58, all from AnyBody inverse dynamics driven by motion capture. <span class="kind illustrative">Illustrative</span> the stick figure and the two correlated signals, which are a static toy and synthetic data built to make the statistic legible.</p>
 
 <section class="sub" id="lean">
 <h2>Lean on the rod</h2>
@@ -82,7 +93,7 @@
 <p>The chain is ViCon motion capture, processed in MATLAB, driving AnyBody inverse dynamics, exported to HDF5, extracted and plotted in MATLAB. The application is human robot interaction, and alongside the simulation work I have been doing a comparative literature review of control systems and nonlinear control for the assistance problem. Code for the extraction and plotting pipeline is in the <a href="https://github.com/Joshua-HsinYa-Lin/trace-lab-humanoid-walking-analysis" target="_blank" rel="noopener">repository</a>; the subject data is not public.</p>
 </section>
 
-<div class="next"><a href="../../index.html#projects">All projects</a><a href="../lna/index.html">Next: a low noise amplifier</a></div>
+<div class="next"><a href="../../index.html#projects">All projects</a><a href="../lna/index.html">Next: a low-noise amplifier</a></div>
 </main>
 <footer class="site-footer"></footer>
 
@@ -217,8 +228,8 @@
     const p = new Site.Plot(c, { x: [0, NPTS], y: [-60, 760], box: { x: 44, y: 22, w: sigcv.w - 56, h: sigcv.h - 58 }, title: 'two signals over three steps', xlabel: 'samples' });
     p.axes();
     p.line({ xs: base.map(function (_, i) { return i; }), ys: base }, { color: C.green, width: 2 });
-    p.line({ xs: res.map(function (_, i) { return i; }), ys: res }, { color: C.amber, width: 2 });
-    p.legend([{ label: 'reaction force style signal', color: C.green }, { label: 'residual style signal', color: C.amber }]);
+    p.line({ xs: res.map(function (_, i) { return i; }), ys: res }, { color: C.amber, width: 2, dash: [8, 3] });
+    p.legend([{ label: 'reaction force style signal', color: C.green }, { label: 'residual style signal', color: C.amber, dash: [8, 3] }]);
     c = sctcv.ctx;
     c.fillStyle = C.panel; c.fillRect(0, 0, sctcv.w, sctcv.h);
     const q = new Site.Plot(c, { x: [0, 760], y: [-60, 140], box: { x: 44, y: 22, w: sctcv.w - 56, h: sctcv.h - 58 }, title: 'residual against reaction, sample by sample', xlabel: 'reaction', ylabel: 'residual' });
@@ -243,7 +254,7 @@
     ['leg_paths', ['/Output/Model/BodyModel/Right/Leg/Knee/Fz', '/Output/Model/BodyModel/Right/Leg/Jnt/Knee/Fz', '/Output/AssistedWalk/Right/Knee/Fz']]
   ];
   let layout = 'a';
-  Site.select(document.getElementById('layrow'), { value: 'a', options: [{ value: 'a', label: LAYOUTS.a.name }, { value: 'b', label: LAYOUTS.b.name }, { value: 'c', label: LAYOUTS.c.name }], onChange: function (v) { layout = v; drawTree(); } });
+  Site.select(document.getElementById('layrow'), { label: 'HDF5 export layout', value: 'a', options: [{ value: 'a', label: LAYOUTS.a.name }, { value: 'b', label: LAYOUTS.b.name }, { value: 'c', label: LAYOUTS.c.name }], onChange: function (v) { layout = v; drawTree(); } });
   function drawTree() {
     const have = LAYOUTS[layout].paths;
     let s = '<span class="dim">file: ' + LAYOUTS[layout].name + '.h5</span>\n';

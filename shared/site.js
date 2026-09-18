@@ -1,7 +1,7 @@
 /* Shared helpers for the portfolio. No dependencies. Everything a project
    page needs beyond its own physics lives here: theme, header, DPR canvases,
-   a visibility aware animation loop, an instrument style plotter, controls,
-   and a seven segment digit. */
+   a visibility aware animation loop that honors reduced motion, an
+   instrument style plotter, accessible controls, and a seven segment digit. */
 (function () {
   const Site = {};
   const root = document.documentElement;
@@ -24,27 +24,55 @@
     };
   }
 
+  /* Theme. Light is the default regardless of the system setting; dark is
+     opt in through the header toggle and remembered per browser. */
   const THEME_KEY = 'jl-theme';
   function applyTheme(t) {
-    if (t) root.setAttribute('data-theme', t);
+    if (t === 'dark') root.setAttribute('data-theme', 'dark');
     else root.removeAttribute('data-theme');
   }
-  /* Light is the default regardless of the system setting; dark is opt in
-     through the header toggle and remembered per browser. */
-  function currentTheme() {
-    const s = root.getAttribute('data-theme');
-    if (s) return s;
-    return 'light';
-  }
+  function currentTheme() { return root.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'; }
   try {
     const t = localStorage.getItem(THEME_KEY);
     if (t) applyTheme(t);
   } catch (e) {}
+  let themeBtn = null;
+  function labelTheme() {
+    if (!themeBtn) return;
+    const dark = currentTheme() === 'dark';
+    themeBtn.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+    themeBtn.setAttribute('title', dark ? 'Switch to light mode' : 'Switch to dark mode');
+    themeBtn.setAttribute('aria-pressed', dark ? 'true' : 'false');
+  }
   Site.toggleTheme = function () {
     const next = currentTheme() === 'dark' ? 'light' : 'dark';
     applyTheme(next);
     try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
+    labelTheme();
   };
+
+  /* Motion. When the visitor prefers reduced motion, every animation loop
+     draws one frame and stops, and a header button lets them opt in. */
+  const rmq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+  Site.reducedMotion = !!(rmq && rmq.matches);
+  Site.motionAllowed = !Site.reducedMotion;
+  const loops = [];
+  let motionBtn = null;
+  function labelMotion() {
+    if (!motionBtn) return;
+    motionBtn.textContent = Site.motionAllowed ? 'Pause animations' : 'Play animations';
+    motionBtn.setAttribute('aria-pressed', Site.motionAllowed ? 'true' : 'false');
+  }
+  Site.setMotion = function (on) {
+    Site.motionAllowed = !!on;
+    loops.forEach(function (l) { if (on) l.kick(); else l.freeze(); });
+    labelMotion();
+  };
+  if (rmq && rmq.addEventListener) rmq.addEventListener('change', function (e) {
+    Site.reducedMotion = e.matches;
+    if (motionBtn) motionBtn.hidden = !Site.reducedMotion;
+    Site.setMotion(!e.matches);
+  });
 
   Site.header = function () {
     const el = document.querySelector('header.site-header');
@@ -54,13 +82,21 @@
     el.innerHTML =
       '<div class="bar">' +
       '<a class="brand" href="' + home + '">Hsin Ya Lin</a>' +
-      '<nav>' +
+      '<nav aria-label="Site">' +
       '<a href="' + home + '#projects">Projects</a>' +
       '<a href="' + rootPath + 'about/index.html">About</a>' +
+      '<a class="hide-sm" href="' + rootPath + 'resume.pdf">Resume</a>' +
       '<a class="hide-sm" href="https://github.com/Joshua-HsinYa-Lin" target="_blank" rel="noopener">GitHub</a>' +
-      '<button class="theme" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">&#9680;</button>' +
+      '<button class="motion" type="button" hidden></button>' +
+      '<button class="theme" type="button">&#9680;</button>' +
       '</nav></div>';
-    el.querySelector('.theme').addEventListener('click', Site.toggleTheme);
+    themeBtn = el.querySelector('.theme');
+    themeBtn.addEventListener('click', Site.toggleTheme);
+    labelTheme();
+    motionBtn = el.querySelector('.motion');
+    motionBtn.hidden = !Site.reducedMotion;
+    motionBtn.addEventListener('click', function () { Site.setMotion(!Site.motionAllowed); });
+    labelMotion();
   };
 
   Site.footer = function () {
@@ -71,12 +107,15 @@
   };
 
   /* Canvas with device pixel ratio handling. opts.aspect is height over width;
-     opts.height is a fixed CSS pixel height and wins if given. */
+     opts.height is a fixed CSS pixel height and wins if given. A canvas with
+     an aria-label is announced as an image; the page should still put the
+     numbers that matter in text beside it. */
   Site.canvas = function (el, opts) {
     opts = opts || {};
     const ctx = el.getContext('2d');
     const st = { el: el, ctx: ctx, w: 0, h: 0, dpr: 1, onresize: null };
     let lastW = -1;
+    if (el.hasAttribute('aria-label') && !el.hasAttribute('role')) el.setAttribute('role', 'img');
     function resize() {
       const rect = el.getBoundingClientRect();
       const w = Math.max(1, rect.width);
@@ -99,30 +138,37 @@
     return st;
   };
 
-  /* requestAnimationFrame loop that only runs while the element is on screen.
-     fn(dt, t) receives seconds. */
+  /* requestAnimationFrame loop that only runs while the element is on screen
+     and motion is allowed. fn(dt, t) receives seconds. Under reduced motion,
+     start() draws a single frame; the header button can release the loops. */
   Site.loop = function (el, fn) {
     let running = false;
     let visible = false;
     let raf = 0;
     let last = 0;
+    let t0 = 0;
     function frame(ts) {
       raf = 0;
-      if (!running || !visible) return;
+      if (!running || !visible || !Site.motionAllowed) return;
+      if (!t0) t0 = ts;
       const dt = last ? Math.min(0.05, (ts - last) / 1000) : 0;
       last = ts;
-      fn(dt, ts / 1000);
+      fn(dt, (ts - t0) / 1000);
       raf = requestAnimationFrame(frame);
     }
     function kick() {
-      if (running && visible && !raf) {
+      if (running && visible && Site.motionAllowed && !raf) {
         last = 0;
         raf = requestAnimationFrame(frame);
       }
     }
+    function once() {
+      try { fn(0, 0); } catch (e) { console.error(e); }
+    }
     if (window.IntersectionObserver) {
       const io = new IntersectionObserver(function (es) {
         visible = es[0].isIntersecting;
+        if (visible && running && !Site.motionAllowed) once();
         kick();
       }, { rootMargin: '120px' });
       io.observe(el);
@@ -130,11 +176,16 @@
       visible = true;
     }
     document.addEventListener('visibilitychange', function () { if (!document.hidden) kick(); });
-    return {
-      start: function () { running = true; kick(); },
+    const api = {
+      start: function () { running = true; if (!Site.motionAllowed) once(); kick(); },
       stop: function () { running = false; },
+      kick: kick,
+      freeze: function () { if (raf) { cancelAnimationFrame(raf); raf = 0; } },
+      frame: once,
       get running() { return running; }
     };
+    loops.push(api);
+    return api;
   };
 
   Site.fmt = function (n, d) {
@@ -156,7 +207,7 @@
   };
 
   Site.colors = {
-    panel: '#0c0f15', rule: '#1c2330', grid: '#161c27', ink: '#c7d0dd', muted: '#6f7a8c',
+    panel: '#0c0f15', rule: '#1c2330', grid: '#161c27', ink: '#c7d0dd', muted: '#8b95a7',
     amber: '#ffb648', cyan: '#4cc9f0', green: '#8ce99a', pink: '#f472b6', red: '#ff6b6b', violet: '#b197fc', white: '#ffffff'
   };
   function monoFont() { return getComputedStyle(root).getPropertyValue('--mono') || 'monospace'; }
@@ -313,7 +364,9 @@
     fn();
     c.restore();
   };
-  /* pts: array of [x, y], or {xs, ys}. */
+  /* pts: array of [x, y], or {xs, ys}. o.dash sets a dash pattern, o.marker
+     draws a small shape every o.every points so series differ by more than
+     color: 'dot', 'square' or 'tri'. */
   Site.Plot.prototype.line = function (pts, o) {
     o = o || {};
     const c = this.ctx;
@@ -345,6 +398,21 @@
         c.closePath();
         c.fill();
         c.globalAlpha = 1;
+      }
+      if (o.marker) {
+        const every = o.every || Math.max(1, Math.floor(n / 24));
+        c.fillStyle = o.color || Site.colors.amber;
+        for (let i = 0; i < n; i += every) {
+          const x = pts.xs ? pts.xs[i] : pts[i][0];
+          const y = pts.xs ? pts.ys[i] : pts[i][1];
+          if (!isFinite(x) || !isFinite(y)) continue;
+          const X = self.px(x), Y = self.py(y), r = 3.2;
+          c.beginPath();
+          if (o.marker === 'square') c.rect(X - r, Y - r, 2 * r, 2 * r);
+          else if (o.marker === 'tri') { c.moveTo(X, Y - r * 1.2); c.lineTo(X + r * 1.1, Y + r * 0.8); c.lineTo(X - r * 1.1, Y + r * 0.8); c.closePath(); }
+          else c.arc(X, Y, r, 0, Math.PI * 2);
+          c.fill();
+        }
       }
     });
   };
@@ -424,6 +492,7 @@
     c.fillText(s, this.px(x) + (o.dx || 0), this.py(y) + (o.dy || 0));
     c.restore();
   };
+  /* items: [{label, color, dash, marker}] */
   Site.Plot.prototype.legend = function (items, o) {
     o = o || {};
     const c = this.ctx;
@@ -434,12 +503,26 @@
     let x = o.x !== undefined ? o.x : b.x + 10;
     let y = o.y !== undefined ? o.y : b.y + 12;
     for (const it of items) {
+      c.strokeStyle = it.color;
       c.fillStyle = it.color;
-      c.fillRect(x, y - 1.5, 14, 3);
+      c.lineWidth = it.width || 3;
+      c.setLineDash(it.dash || []);
+      c.beginPath();
+      c.moveTo(x, y);
+      c.lineTo(x + 18, y);
+      c.stroke();
+      c.setLineDash([]);
+      if (it.marker) {
+        c.beginPath();
+        if (it.marker === 'square') c.rect(x + 6, y - 3, 6, 6);
+        else if (it.marker === 'tri') { c.moveTo(x + 9, y - 4); c.lineTo(x + 12.5, y + 3); c.lineTo(x + 5.5, y + 3); c.closePath(); }
+        else c.arc(x + 9, y, 3, 0, Math.PI * 2);
+        c.fill();
+      }
       c.fillStyle = Site.colors.ink;
       c.textAlign = 'left';
-      c.fillText(it.label, x + 19, y);
-      if (o.horizontal) x += 19 + c.measureText(it.label).width + 16;
+      c.fillText(it.label, x + 23, y);
+      if (o.horizontal) x += 23 + c.measureText(it.label).width + 16;
       else y += 16;
     }
     c.restore();
@@ -453,6 +536,7 @@
     return e;
   }
   Site.el = el;
+  let uid = 0;
   Site.slider = function (parent, o) {
     const wrap = el('label', 'ctl' + (o.wide ? ' wide' : ''));
     const lab = el('span', 'ctl-label', o.label);
@@ -463,23 +547,29 @@
     inp.step = o.step === undefined ? 'any' : o.step;
     inp.value = o.value;
     const out = el('output');
+    out.setAttribute('aria-live', 'off');
     wrap.appendChild(lab);
     wrap.appendChild(inp);
     wrap.appendChild(out);
     parent.appendChild(wrap);
     const fmt = o.fmt || function (v) { return Site.fmt(v, o.digits === undefined ? 2 : o.digits) + (o.unit ? ' ' + o.unit : ''); };
+    function refresh() {
+      const txt = fmt(parseFloat(inp.value));
+      out.textContent = txt;
+      inp.setAttribute('aria-valuetext', txt);
+    }
     const api = {
       el: wrap,
       input: inp,
       get value() { return parseFloat(inp.value); },
-      set value(v) { inp.value = v; out.textContent = fmt(parseFloat(inp.value)); },
-      refresh: function () { out.textContent = fmt(parseFloat(inp.value)); }
+      set value(v) { inp.value = v; refresh(); },
+      refresh: refresh
     };
     inp.addEventListener('input', function () {
-      out.textContent = fmt(parseFloat(inp.value));
+      refresh();
       if (o.onInput) o.onInput(parseFloat(inp.value));
     });
-    out.textContent = fmt(parseFloat(inp.value));
+    refresh();
     return api;
   };
   Site.button = function (parent, o) {
@@ -494,37 +584,63 @@
     let on = !!o.value;
     const b = el('button', 'btn' + (on ? ' on' : ''), o.label);
     b.type = 'button';
-    b.setAttribute('aria-pressed', on ? 'true' : 'false');
-    b.addEventListener('click', function () {
-      on = !on;
+    function paint() {
       b.classList.toggle('on', on);
       b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+    paint();
+    b.addEventListener('click', function () {
+      on = !on;
+      paint();
       if (o.onChange) o.onChange(on);
     });
     parent.appendChild(b);
-    return { el: b, get value() { return on; }, set value(v) { on = !!v; b.classList.toggle('on', on); } };
+    return { el: b, get value() { return on; }, set value(v) { on = !!v; paint(); } };
   };
-  /* Segmented select: options is [{value, label}]. */
+  /* Segmented select as a radio group: options is [{value, label}]. Arrow
+     keys move between options, Enter or Space selects, and the ARIA state
+     follows both clicks and programmatic .value changes. */
   Site.select = function (parent, o) {
     const wrap = el('div', 'seg-select');
+    wrap.setAttribute('role', 'radiogroup');
+    if (o.label) wrap.setAttribute('aria-label', o.label);
     let val = o.value;
     const btns = [];
-    o.options.forEach(function (opt) {
-      const b = el('button', 'btn' + (opt.value === val ? ' on' : ''), opt.label);
+    function paint() {
+      btns.forEach(function (b, i) {
+        const on = o.options[i].value === val;
+        b.classList.toggle('on', on);
+        b.setAttribute('aria-checked', on ? 'true' : 'false');
+        b.tabIndex = on ? 0 : -1;
+      });
+      if (!btns.some(function (b) { return b.tabIndex === 0; }) && btns.length) btns[0].tabIndex = 0;
+    }
+    function choose(i, fire) {
+      val = o.options[i].value;
+      paint();
+      if (fire && o.onChange) o.onChange(val);
+    }
+    o.options.forEach(function (opt, i) {
+      const b = el('button', 'btn', opt.label);
       b.type = 'button';
-      b.addEventListener('click', function () {
-        val = opt.value;
-        btns.forEach(function (x) { x.classList.toggle('on', x === b); });
-        if (o.onChange) o.onChange(val);
+      b.setAttribute('role', 'radio');
+      b.addEventListener('click', function () { choose(i, true); });
+      b.addEventListener('keydown', function (e) {
+        let j = -1;
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') j = (i + 1) % btns.length;
+        else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') j = (i - 1 + btns.length) % btns.length;
+        if (j >= 0) { e.preventDefault(); choose(j, true); btns[j].focus(); }
       });
       btns.push(b);
       wrap.appendChild(b);
     });
+    paint();
     parent.appendChild(wrap);
-    return { el: wrap, get value() { return val; }, set value(v) { val = v; btns.forEach(function (x, i) { x.classList.toggle('on', o.options[i].value === v); }); } };
+    return { el: wrap, get value() { return val; }, set value(v) { val = v; paint(); } };
   };
   Site.readouts = function (parent, keys) {
     const wrap = el('div', 'readouts');
+    wrap.setAttribute('aria-live', 'off');
     const map = {};
     keys.forEach(function (k) {
       const r = el('span', 'r', k.label + ' <b class="' + (k.color || '') + '">&nbsp;</b>');
@@ -538,7 +654,8 @@
     };
   };
 
-  /* Seven segment digit. ch is one character. Segments a b c d e f g. */
+  /* Seven segment digit. ch is one character, or '#' followed by raw segment
+     letters. Segments a b c d e f g. */
   const SEG = {
     '0': 'abcdef', '1': 'bc', '2': 'abdeg', '3': 'abcdg', '4': 'bcfg', '5': 'acdfg', '6': 'acdefg', '7': 'abc', '8': 'abcdefg', '9': 'abcdfg',
     'A': 'abcefg', 'B': 'cdefg', 'C': 'adef', 'D': 'bcdeg', 'E': 'adefg', 'F': 'aefg', 'H': 'bcefg', 'L': 'def', 'M': 'aceg', 'N': 'ceg', 'O': 'abcdef',
@@ -562,9 +679,9 @@
       g: [x + t + gap, y + h / 2 - t / 2, w - 2 * t - 2 * gap, t]
     };
     for (const k in segs) {
-      const s = segs[k];
+      const sg = segs[k];
       ctx.fillStyle = lit.indexOf(k) >= 0 ? on : off;
-      ctx.fillRect(s[0], s[1], s[2], s[3]);
+      ctx.fillRect(sg[0], sg[1], sg[2], sg[3]);
     }
     if (o.dot !== undefined) {
       ctx.fillStyle = o.dot ? on : off;
@@ -587,6 +704,41 @@
       ctx.fill();
       ctx.restore();
     }
+  };
+
+  /* Pointer drag helper: one pointer at a time, capture on the element,
+     clean up on cancel and on window blur. handlers: down(x, y, ev),
+     move(x, y, ev), up(). Coordinates are in CSS pixels within the element. */
+  Site.drag = function (el, handlers) {
+    let active = null;
+    function pos(ev) {
+      const r = el.getBoundingClientRect();
+      return [ev.clientX - r.left, ev.clientY - r.top];
+    }
+    function end() {
+      if (active === null) return;
+      try { el.releasePointerCapture(active); } catch (e) {}
+      active = null;
+      if (handlers.up) handlers.up();
+    }
+    el.addEventListener('pointerdown', function (ev) {
+      if (active !== null) return;
+      if (ev.button !== undefined && ev.button !== 0) return;
+      active = ev.pointerId;
+      try { el.setPointerCapture(active); } catch (e) {}
+      const p = pos(ev);
+      if (handlers.down) handlers.down(p[0], p[1], ev);
+    });
+    el.addEventListener('pointermove', function (ev) {
+      if (ev.pointerId !== active) return;
+      const p = pos(ev);
+      if (handlers.move) handlers.move(p[0], p[1], ev);
+    });
+    el.addEventListener('pointerup', function (ev) { if (ev.pointerId === active) end(); });
+    el.addEventListener('pointercancel', function (ev) { if (ev.pointerId === active) end(); });
+    el.addEventListener('lostpointercapture', function (ev) { if (ev.pointerId === active) end(); });
+    window.addEventListener('blur', end);
+    return { cancel: end };
   };
 
   Site.ready = function (fn) {

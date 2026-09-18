@@ -3,8 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Wiring a robot so a fault finds itself — Hsin Ya Lin</title>
-<meta name="description" content="Find a short in a single harness, then in one with a labeled connector at every subsystem, and count your steps. Then pick the wire and connector for a current, and see the disconnect bug that was fixed.">
+<title>FRC Electrical Architecture and Harnessing, Team 8020 | Hsin Ya Lin</title>
+<meta name="description" content="Find a short in a single harness, then in one with a labeled connector at every subsystem. Connector and wire gauge selection from manufacturer continuous ratings, CAN bus, and a pneumatics trade study.">
+<link rel="canonical" href="https://joshua-hsinya-lin.github.io/projects/frc8020/index.html">
+<meta property="og:title" content="FRC Electrical Architecture and Harnessing, Team 8020">
+<meta property="og:description" content="Find a short in a single harness, then in one with a labeled connector at every subsystem. Connector and wire gauge selection from manufacturer continuous ratings, CAN bus, and a pneumatics trade study.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://joshua-hsinya-lin.github.io/projects/frc8020/index.html">
+<meta property="og:image" content="https://joshua-hsinya-lin.github.io/profile.jpg">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="FRC Electrical Architecture and Harnessing, Team 8020">
+<meta name="twitter:description" content="Find a short in a single harness, then in one with a labeled connector at every subsystem. Connector and wire gauge selection from manufacturer continuous ratings, CAN bus, and a pneumatics trade study.">
+<meta name="twitter:image" content="https://joshua-hsinya-lin.github.io/profile.jpg">
 <link rel="stylesheet" href="../../shared/site.css">
 <script src="../../shared/site.js"></script>
 <style>
@@ -38,6 +48,7 @@ table.tbl.dark th { color: var(--panel-muted); }
 <div class="when">Aug 2023 to Jun 2024 · Taipei</div>
 <p class="lede">A competition robot is rebuilt weekly and breaks on a schedule. My post mortem of the 2023 build season recorded the team losing days pulling and re-pulling wiring on prototypes. The fix was an architecture: every subsystem meets the rest of the robot at a connector, and both halves of every connector carry the same label. A fault is then found by unplugging things, not by tracing wires.</p>
 <div class="tags"><span>Power distribution</span><span>Wire harness</span><span>CAN bus</span><span>Pneumatics</span><span>LabVIEW</span><span>KiCad</span><span>Root cause analysis</span></div>
+<p class="src kinds"><span class="kind measured">Measured</span> the harness tally, counted from the season spreadsheet, and the connector ratings, taken from the manufacturer. <span class="kind illustrative">Illustrative</span> the fault finding game and the selector, which exist to show the method rather than to replay a specific fault.</p>
 
 <section class="sub" id="game">
 <h2>Find the fault</h2>
@@ -61,13 +72,41 @@ table.tbl.dark th { color: var(--panel-muted); }
 
 <section class="sub" id="wire">
 <h2>Pick the wire and the connector</h2>
-<p>Each circuit on the robot got its connector and wire gauge from its current. XT30 connectors are rated for 30 A continuous, XT60 for 60 A, and the wire gauge follows a standard chassis wiring ampacity table. Drag the current and see what the circuit gets. Below it, what the harness for two robots actually came to.</p>
+<p>Each circuit got its connector and wire gauge from the current it carries, and the trap is that the number in a connector's name is not its continuous rating. AMASS, who make the genuine parts, rate the XT30U at 15 A continuous and 30 A instantaneous, and the XT60 at 30 A continuous and 60 A instantaneous for under a minute on 12 AWG. Sizing a 30 A continuous circuit to an XT30 because the name says 30 is exactly the mistake the table below exists to prevent.</p>
+<table class="tbl">
+<caption>Manufacturer figures for the genuine AMASS parts. Our tally recorded bodies as XT30 and XT60 without a variant suffix, so the first row is the common XT30U. A counterfeit or a different variant is not covered by these numbers, which is its own reason to buy the real part.</caption>
+<tr><th>Connector</th><th>Continuous</th><th>Instantaneous</th><th>Voltage</th><th>Wire</th></tr>
+<tr><td>XT30U</td><td class="num">15 A</td><td class="num">30 A</td><td class="num">500 V</td><td class="num">to 18 AWG</td></tr>
+<tr><td>XT60</td><td class="num">30 A</td><td class="num">60 A, under a minute</td><td class="num">500 V</td><td class="num">12 AWG</td></tr>
+</table>
 <div class="panel">
+  <span class="kind illustrative">Illustrative selector</span>
   <div class="controls" id="wctl"></div>
   <div id="wro"></div>
-  <canvas id="harness" aria-label="Connector and wire tallies for two robots"></canvas>
-  <p class="hint">Counted from the harness spreadsheet for the two 2023 robots. Wire lengths per robot, connector bodies per robot.</p>
+  <p class="hint">Selection runs on the continuous rating with a derating margin, never on the name. The wire row is a chassis-wiring ampacity guideline, a rule of thumb rather than a rating for one specific wire in one specific bundle.</p>
 </div>
+<p class="src">Ratings from <a href="https://docs.holybro.com/power-module-and-pdb/power-module/connector-and-wire-rating" target="_blank" rel="noopener">Holybro's connector and wire rating table</a>, which states 30 A continuous and 60 A instantaneous for a genuine AMASS XT60 on 12 AWG, and the <a href="https://www.tme.com/us/en-us/details/xt30u-m/dc-power-connectors/amass/" target="_blank" rel="noopener">distributor listing for the AMASS XT30U-M</a> at 15 A, 500 V. Checked 2026-09-17.</p>
+</section>
+
+<section class="sub" id="harness-sec">
+<h2>What the harness came to</h2>
+<p>Counted from the harness spreadsheet for the two 2023 robots, Carrier and Elevator. This is the measured tally, not an estimate.</p>
+<div class="panel">
+  <span class="kind measured">Measured tally</span>
+  <canvas id="harness" aria-hidden="true"></canvas>
+</div>
+<table class="tbl">
+<caption>Connector bodies per robot, and wire length per robot in meters.</caption>
+<tr><th>Item</th><th>Carrier</th><th>Elevator</th></tr>
+<tr><td>XT30 bodies</td><td class="num">18</td><td class="num">20</td></tr>
+<tr><td>XT60 bodies</td><td class="num">4</td><td class="num">6</td></tr>
+<tr><td>RJ45 bodies</td><td class="num">2</td><td class="num">4</td></tr>
+<tr><td>12 AWG power</td><td class="num">2.46 m</td><td class="num">2.13 m</td></tr>
+<tr><td>24 AWG signal</td><td class="num">8.61 m</td><td class="num">9.19 m</td></tr>
+<tr><td>CAN bus</td><td class="num">2.46 m</td><td class="num">1.90 m</td></tr>
+<tr><td>Network</td><td class="num">2.00 m</td><td class="num">2.95 m</td></tr>
+<tr><td>Pneumatic</td><td class="num">2.30 m</td><td class="num">0.95 m</td></tr>
+</table>
 </section>
 
 <section class="sub" id="radio">
@@ -154,7 +193,7 @@ table.tbl.dark th { color: var(--panel-muted); }
       : 'Click connectors to unplug or replug them, then press Test power. Each test is one step.';
   }
   const gmode = document.getElementById('gmode');
-  Site.select(gmode, { value: 'mono', options: [{ value: 'mono', label: 'Single harness, unlabeled' }, { value: 'mod', label: 'Modular, labeled connectors' }], onChange: function (v) { G.mode = v; glog.innerHTML = ''; newRound(); } });
+  Site.select(gmode, { label: 'Harness style', value: 'mono', options: [{ value: 'mono', label: 'Single harness, unlabeled' }, { value: 'mod', label: 'Modular, labeled connectors' }], onChange: function (v) { G.mode = v; glog.innerHTML = ''; newRound(); } });
   const grow = document.getElementById('grow');
   const testBtn = Site.button(grow, { label: 'Test power', primary: true, onClick: function () {
     if (G.mode !== 'mod' || G.done) return;
@@ -274,20 +313,36 @@ table.tbl.dark th { color: var(--panel-muted); }
   newRound();
   updateScore();
 
-  /* Wire and connector picker */
+  /* Wire and connector picker. Selection runs on the manufacturer's
+     continuous rating with a derating margin. The number in the part name is
+     the instantaneous figure and is never used to size anything here. */
+  const CONNECTORS = [
+    { name: 'XT30U', cont: 15, inst: 30, wire: 'to 18 AWG' },
+    { name: 'XT60', cont: 30, inst: 60, wire: '12 AWG' }
+  ];
   const AMPACITY = [[24, 3.5], [22, 7], [20, 11], [18, 16], [16, 22], [14, 32], [12, 41], [10, 55], [8, 73]];
   const wctl = document.getElementById('wctl');
-  const wro = Site.readouts(document.getElementById('wro'), [{ key: 'conn', label: 'connector', color: 'amber' }, { key: 'awg', label: 'wire', color: 'cyan' }, { key: 'note', label: '' }]);
-  Site.slider(wctl, { label: 'circuit current', min: 0.5, max: 80, step: 0.5, value: 20, unit: 'A', digits: 1, wide: true, onInput: pick });
-  function pick(I) {
-    const conn = I <= 30 ? 'XT30 (30 A)' : (I <= 60 ? 'XT60 (60 A)' : 'above XT60: bus bar or lug');
+  const wro = Site.readouts(document.getElementById('wro'), [
+    { key: 'need', label: 'capability needed', color: 'amber' },
+    { key: 'conn', label: 'connector', color: 'cyan' },
+    { key: 'awg', label: 'wire', color: 'green' },
+    { key: 'note', label: '' }
+  ]);
+  const wI = Site.slider(wctl, { label: 'continuous current', min: 0.5, max: 60, step: 0.5, value: 12, unit: 'A', digits: 1, onInput: pick });
+  const wM = Site.slider(wctl, { label: 'derating margin', min: 0, max: 60, step: 5, value: 25, unit: '%', digits: 0, onInput: pick });
+  function pick() {
+    const I = wI.value;
+    const need = I * (1 + wM.value / 100);
+    let conn = null;
+    for (const c of CONNECTORS) if (c.cont >= need) { conn = c; break; }
     let awg = null;
-    for (const a of AMPACITY) if (a[1] >= I) { awg = a; break; }
-    wro.set('conn', conn);
-    wro.set('awg', awg ? awg[0] + ' AWG (' + awg[1] + ' A chassis rating)' : 'heavier than 8 AWG');
-    wro.set('note', I < 4 ? 'signal class: 24 AWG on this robot' : (I >= 30 ? 'drive and elevator class: 12 AWG on this robot' : 'between the two classes used'));
+    for (const a of AMPACITY) if (a[1] >= need) { awg = a; break; }
+    wro.set('need', need.toFixed(1) + ' A');
+    wro.set('conn', conn ? conn.name + ', rated ' + conn.cont + ' A continuous (' + conn.inst + ' A instantaneous)' : 'past XT60: bus bar or lug');
+    wro.set('awg', awg ? awg[0] + ' AWG (' + awg[1] + ' A chassis guideline)' : 'heavier than 8 AWG');
+    wro.set('note', I < 4 ? 'signal class: this robot used 24 AWG' : (I >= 25 ? 'drive and elevator class: this robot used 12 AWG' : 'between the two classes this robot used'));
   }
-  pick(20);
+  pick();
   const harness = Site.canvas(document.getElementById('harness'), { height: 240 });
   function drawHarness() {
     const c = harness.ctx, w = harness.w, h = harness.h;

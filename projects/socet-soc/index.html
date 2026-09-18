@@ -3,24 +3,34 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>A Kalman filter in hardware — Hsin Ya Lin</title>
-<meta name="description" content="A RISC-V system on chip with an attitude filter accelerator. Watch a Kalman filter fuse a gyro and an accelerometer, then see how the filter becomes a straight line of descriptors over a single multiplier.">
+<title>RISC-V SoC with a Kalman Filter Accelerator, Purdue SoCET | Hsin Ya Lin</title>
+<meta name="description" content="A RISC-V system on chip with an attitude filter accelerator. Watch a Kalman filter fuse a gyro and an accelerometer, then see the filter become a straight line of descriptors over one multiplier.">
+<link rel="canonical" href="https://joshua-hsinya-lin.github.io/projects/socet-soc/index.html">
+<meta property="og:title" content="RISC-V SoC with a Kalman Filter Accelerator, Purdue SoCET">
+<meta property="og:description" content="A RISC-V system on chip with an attitude filter accelerator. Watch a Kalman filter fuse a gyro and an accelerometer, then see the filter become a straight line of descriptors over one multiplier.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://joshua-hsinya-lin.github.io/projects/socet-soc/index.html">
+<meta property="og:image" content="https://joshua-hsinya-lin.github.io/profile.jpg">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="RISC-V SoC with a Kalman Filter Accelerator, Purdue SoCET">
+<meta name="twitter:description" content="A RISC-V system on chip with an attitude filter accelerator. Watch a Kalman filter fuse a gyro and an accelerometer, then see the filter become a straight line of descriptors over one multiplier.">
+<meta name="twitter:image" content="https://joshua-hsinya-lin.github.io/profile.jpg">
 <link rel="stylesheet" href="../../shared/site.css">
 <script src="../../shared/site.js"></script>
 <style>
 .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
 @media (max-width: 760px) { .split { grid-template-columns: 1fr; } }
-.ops { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.35rem; font-family: var(--mono); font-size: 0.78rem; margin: 0.8rem 0; }
+.ops { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 0.35rem; font-family: var(--mono); font-size: 0.78rem; margin: 0.8rem 0; }
 .ops span { background: var(--bg2); border: 1px solid var(--rule); border-radius: 6px; padding: 0.25rem 0.5rem; color: var(--ink2); }
 .ops span b { color: var(--accent); }
 .tri { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1rem; align-items: start; }
 @media (max-width: 640px) { .tri { grid-template-columns: 1fr; } }
 .triout { overflow-x: auto; min-width: 0; }
 .trigrid { display: grid; grid-template-columns: repeat(6, 34px); gap: 3px; }
-.trigrid div { width: 34px; height: 34px; display: grid; place-items: center; font-family: var(--mono); font-size: 0.72rem; border-radius: 5px; background: #141a24; color: var(--panel-muted); cursor: default; }
-.trigrid div.up { background: #1f2a3d; color: var(--panel-ink); }
-.trigrid div.hot { background: var(--amber); color: #1a1200; font-weight: 700; }
-.trigrid div.mirror { outline: 2px solid var(--amber); }
+.trigrid button { width: 34px; height: 34px; display: grid; place-items: center; font-family: var(--mono); font-size: 0.72rem; border-radius: 5px; background: #141a24; color: var(--panel-muted); border: 1px solid transparent; cursor: pointer; padding: 0; }
+.trigrid button.up { background: #1f2a3d; color: var(--panel-ink); }
+.trigrid button[aria-pressed="true"] { background: var(--amber); color: #1a1200; font-weight: 700; }
+.trigrid button.mirror { box-shadow: inset 0 0 0 2px var(--amber); }
 .triout { font-family: var(--mono); font-size: 0.85rem; line-height: 1.7; color: var(--panel-ink); white-space: pre; }
 .triout b { color: var(--amber); }
 .mine { border: 1px solid var(--accent); border-radius: 10px; padding: 0.7rem 0.9rem; background: var(--bg2); max-width: 68ch; }
@@ -33,9 +43,10 @@
 <div class="kicker">Purdue SoCET · Chip Design Project · in progress</div>
 <h1>A Kalman filter in hardware</h1>
 <div class="when">Fall 2026 · West Lafayette, Indiana</div>
-<p class="lede">This semester the team is building a RISC-V system on chip on an FPGA: an RV32I core with the multiply extension, an on-chip bus of our own, SRAM, a UART back to a host, an SPI controller that reads a six axis inertial sensor, and an accelerator that turns gyro and accelerometer samples into an attitude quaternion without the CPU touching the math. The question the chip exists to answer is what moving the filter into hardware buys, in cycles, power and area, against running it in software on the same core.</p>
+<p class="lede">This semester the team is building a RISC-V system on chip on an FPGA: an RV32I core with the multiply extension, an on-chip bus of our own, SRAM, a UART back to a host, an SPI controller that reads a six-axis inertial sensor, and an accelerator that turns gyro and accelerometer samples into an attitude quaternion without the CPU touching the math. The question the chip exists to answer is what moving the filter into hardware buys, in cycles, power and area, against running it in software on the same core.</p>
 <div class="mine"><b>My block is the SPI controller</b> that reads the sensor. The team works so that every member knows every part, so this page walks the whole chip, and it is honest about which numbers are design budgets rather than measurements. Nothing here has been measured on silicon yet.</div>
 <div class="tags"><span>RISC-V</span><span>SystemVerilog</span><span>Kalman filter</span><span>Fixed point</span><span>SPI</span><span>UART</span><span>Memory mapped IO</span><span>FPGA</span></div>
+<p class="src kinds"><span class="kind model">Simulation</span> the Kalman demo, the descriptor walk and the fixed-point charts are computed from the design as specified. <span class="kind illustrative">Illustrative</span> the sensor noise, gains and thresholds you can move are typical values, not the tuned ones. Nothing on this page has been measured on silicon; cycle, power and area figures are design budgets and are labeled as such.</p>
 
 <section class="sub" id="kf">
 <h2>Watch a Kalman filter work</h2>
@@ -47,13 +58,13 @@
   <div id="kfro"></div>
   <p class="hint">Grey is the truth. Amber integrates the gyro alone and walks away. Cyan is the accelerometer alone. Green is the filter, with the bias it has learned in the lower plot. Push the board sideways with the gate off and watch the accelerometer drag the estimate away; turn the gate on and push again.</p>
 </div>
-<p>The gate is the cheapest line in the whole design and the most valuable. An accelerometer measures specific force, not gravity, so when the board is being pushed the measurement is not pointing down and the update would actively corrupt the attitude. Comparing the vector's magnitude against one g and skipping the update when it is off costs one compare per sample. In the accelerator it is an opcode.</p>
+<p>The gate is the cheapest line in the whole design and the most valuable. An accelerometer measures specific force, not gravity, so when the board is being pushed the measurement is not pointing down and the update would actively corrupt the attitude. Once the acceleration norm, or its square, is already available, the gate itself is one comparison per sample. The norm is not free on its own: it is a three-term multiply and accumulate, one descriptor. It is computed anyway, because the same value normalizes the measurement vector for the update that follows, so gating adds one opcode to work the filter was already doing.</p>
 </section>
 
 <section class="sub" id="state">
 <h2>Seven numbers, six errors, twenty one covariances</h2>
-<p>The real filter estimates a unit quaternion and three gyro biases. A quaternion has four numbers but only three degrees of freedom, so filtering it directly makes the covariance singular. The design keeps the quaternion as a nominal state that is never filtered, and runs the Kalman filter on a six element error state, three small angles and three bias errors, injecting the correction back into the quaternion by multiplication rather than addition. That is the multiplicative extended Kalman filter, and it is why the covariance is 6 by 6 rather than 7 by 7.</p>
-<p>Six by six is 36 words, but the matrix is symmetric, so the accelerator stores 21 and addresses them through a packed triangular index: a six entry row offset table plus one addition, no multiplier. Hover the matrix.</p>
+<p>The real filter estimates a unit quaternion and three gyro biases. A four-component quaternion error state is redundant: the unit-norm constraint leaves only three independent attitude degrees of freedom, so a covariance carrying all four has no information in the fourth direction and the estimator is working against a constraint it cannot see. The design keeps the quaternion as a nominal state that is never filtered, and runs the Kalman filter on a six element error state, three small angles and three bias errors, injecting the correction back into the quaternion by multiplication rather than addition. That is the multiplicative extended Kalman filter, and it is why the covariance is 6 by 6 rather than 7 by 7.</p>
+<p>Six by six is 36 words, but the matrix is symmetric, so the accelerator stores 21 and addresses them through a packed triangular index: a six entry row offset table plus one addition, no multiplier. Hover, focus, or tap a cell.</p>
 <div class="panel">
   <div class="tri">
     <div class="trigrid" id="trigrid"></div>
@@ -100,7 +111,7 @@
   <canvas id="chipcv" aria-label="System on chip block diagram"></canvas>
 </div>
 <p>The CPU runs a C program compiled for RISC-V. It configures the sensor over SPI, reads samples as they arrive, hands them to the accelerator through memory mapped registers, and streams the quaternion and bias out over UART to a host that compares them against a golden model. The same program with the filter in software gives the baseline the accelerator is measured against: cycle count per sample, and the power and area the block costs on the FPGA.</p>
-<p>The sensor is a six axis part rather than a nine axis one, and that was a decision rather than a default. Its noise is documented, which makes synthetic test data tractable; one device keeps the SPI controller to a single peripheral; and a magnetometer's zero gauss offset of around one gauss would swamp the heading over long timesteps for no gain in the quantity we are validating.</p>
+<p>The sensor is a six-axis part rather than a nine-axis one, and that was a decision rather than a default. Its noise is documented, which makes synthetic test data tractable; one device keeps the SPI controller to a single peripheral; and a magnetometer's zero gauss offset of around one gauss would swamp the heading over long timesteps for no gain in the quantity we are validating.</p>
 </section>
 
 <section class="sub" id="spi">
@@ -112,7 +123,7 @@
   <div class="controls" id="spictl"></div>
   <p class="hint" id="spinote"></p>
 </div>
-<p>The thread back to the satellite work is direct. Last summer the firmware read a nine axis IMU over I2C and ran quaternion attitude control in C on a microcontroller, and I verified the actuator protocol by decoding bytes on the wire against an independent implementation. Now the sensor read is a hardware block, verified the same way against a bus functional model of the sensor, one layer down.</p>
+<p>The thread back to the satellite work is direct. Last summer the firmware read a nine-axis IMU over I2C and ran quaternion attitude control in C on a microcontroller, and I verified the actuator protocol by decoding bytes on the wire against an independent implementation. Now the sensor read is a hardware block, verified the same way against a bus functional model of the sensor, one layer down.</p>
 </section>
 
 <section class="sub" id="status">
@@ -220,14 +231,19 @@
           segStart = null;
         }
       }
-      p1.line(hs.map(function (q) { return [q[0], q[3]]; }), { color: 'rgba(76,201,240,0.55)', width: 1 });
-      p1.line(hs.map(function (q) { return [q[0], q[2]]; }), { color: C.amber, width: 1.5 });
-      p1.line(hs.map(function (q) { return [q[0], q[1]]; }), { color: '#8a93a5', width: 2, dash: [5, 4] });
-      p1.line(hs.map(function (q) { return [q[0], q[4]]; }), { color: C.green, width: 2 });
+      p1.line(hs.map(function (q) { return [q[0], q[3]]; }), { color: 'rgba(76,201,240,0.55)', width: 1, dash: [2, 3], marker: 'dot', every: 40 });
+      p1.line(hs.map(function (q) { return [q[0], q[2]]; }), { color: C.amber, width: 1.5, dash: [9, 3], marker: 'tri', every: 60 });
+      p1.line(hs.map(function (q) { return [q[0], q[1]]; }), { color: '#9aa2b1', width: 2, dash: [5, 4] });
+      p1.line(hs.map(function (q) { return [q[0], q[4]]; }), { color: C.green, width: 2, marker: 'square', every: 50 });
       p2.hline(K.bias, { color: '#8a93a5', label: 'true bias' });
       p2.line(hs.map(function (q) { return [q[0], q[5]]; }), { color: C.pink, width: 2 });
     }
-    p1.legend([{ label: 'truth', color: '#8a93a5' }, { label: 'gyro integrated', color: C.amber }, { label: 'accelerometer', color: C.cyan }, { label: 'Kalman filter', color: C.green }], { x: p1.box.x + 10, y: p1.box.y + 12 });
+    p1.legend([
+      { label: 'truth', color: '#9aa2b1', dash: [5, 4] },
+      { label: 'gyro integrated', color: C.amber, dash: [9, 3], marker: 'tri' },
+      { label: 'accelerometer', color: C.cyan, dash: [2, 3], marker: 'dot' },
+      { label: 'Kalman filter', color: C.green, marker: 'square' }
+    ], { x: p1.box.x + 10, y: p1.box.y + 12 });
   }
   const kfLoop = Site.loop(kfcv.el, function (dt) {
     const n = Math.max(1, Math.round(dt / K.dt));
@@ -248,9 +264,13 @@
   const triout = document.getElementById('triout');
   const cells = [];
   for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) {
-    const d = document.createElement('div');
+    const d = document.createElement('button');
+    d.type = 'button';
     if (j >= i) { d.className = 'up'; d.textContent = String(ROWOFF[i] + (j - i)); } else d.textContent = '·';
+    d.setAttribute('aria-label', 'Covariance element row ' + i + ' column ' + j);
+    d.setAttribute('aria-pressed', 'false');
     d.addEventListener('mouseenter', function () { showTri(i, j); });
+    d.addEventListener('focus', function () { showTri(i, j); });
     d.addEventListener('click', function () { showTri(i, j); });
     grid.appendChild(d);
     cells.push(d);
@@ -258,7 +278,10 @@
   function showTri(i, j) {
     const lo = Math.min(i, j), hi = Math.max(i, j);
     const idx = ROWOFF[lo] + (hi - lo);
-    cells.forEach(function (d, k) { d.classList.toggle('hot', k === lo * 6 + hi); d.classList.toggle('mirror', k === hi * 6 + lo && i !== j); });
+    cells.forEach(function (d, k) {
+      d.setAttribute('aria-pressed', k === lo * 6 + hi ? 'true' : 'false');
+      d.classList.toggle('mirror', k === hi * 6 + lo && i !== j);
+    });
     triout.innerHTML = 'P[' + i + '][' + j + ']\n' +
       'lo = min(i, j) = ' + lo + '   hi = max(i, j) = ' + hi + '\n' +
       'index = rowoff[' + lo + '] + (hi − lo)\n' +
@@ -309,7 +332,7 @@
     } else DS.k++;
   }
   const dsel = document.getElementById('dsel');
-  Site.select(dsel, { value: 0, options: DESCS.map(function (d, i) { return { value: i, label: d.name.split('  ')[0] }; }), onChange: function (v) { DS.d = v; dsReset(); } });
+  Site.select(dsel, { label: 'Descriptor', value: 0, options: DESCS.map(function (d, i) { return { value: i, label: d.name.split('  ')[0] }; }), onChange: function (v) { DS.d = v; dsReset(); } });
   const drow = document.getElementById('drow');
   const runB = Site.button(drow, { label: 'Pause', onClick: function (b) { DS.running = !DS.running; b.textContent = DS.running ? 'Pause' : 'Run'; } });
   Site.button(drow, { label: 'Step', onClick: function () { DS.running = false; runB.textContent = 'Run'; dsStep(); } });
@@ -477,7 +500,7 @@
   const spi = Site.canvas(document.getElementById('spicv'), { aspect: 0.42 });
   let mode = 3;
   const spictl = document.getElementById('spictl');
-  Site.select(document.getElementById('spimode'), { value: 3, options: [{ value: 0, label: 'Mode 0' }, { value: 1, label: 'Mode 1' }, { value: 2, label: 'Mode 2' }, { value: 3, label: 'Mode 3, the sensor' }], onChange: function (v) { mode = v; drawSpi(); } });
+  Site.select(document.getElementById('spimode'), { label: 'SPI mode', value: 3, options: [{ value: 0, label: 'Mode 0' }, { value: 1, label: 'Mode 1' }, { value: 2, label: 'Mode 2' }, { value: 3, label: 'Mode 3, the sensor' }], onChange: function (v) { mode = v; drawSpi(); } });
   const mosi = Site.slider(spictl, { label: 'MOSI byte', min: 0, max: 255, step: 1, value: 0x8F, fmt: function (v) { return '0x' + v.toString(16).toUpperCase().padStart(2, '0'); }, onInput: drawSpi });
   const miso = Site.slider(spictl, { label: 'MISO byte', min: 0, max: 255, step: 1, value: 0x6C, fmt: function (v) { return '0x' + v.toString(16).toUpperCase().padStart(2, '0'); }, onInput: drawSpi });
   function drawSpi() {
